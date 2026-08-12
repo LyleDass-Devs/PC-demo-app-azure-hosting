@@ -1,0 +1,72 @@
+# Claude Code — local, machine-specific overrides and working state
+.claude/settings.local.json
+.claude/worktrees/
+.claude/cache/
+
+# Secrets — never commit. Use env/config/vault.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+appsettings.*.local.json
+secrets.json
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+TestResults/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.angular/
+.next/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Java / Android / Kotlin
+.gradle/
+local.properties
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# C++
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+CMakeFiles/
+CMakeCache.txt
+
+# IDE / OS
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
