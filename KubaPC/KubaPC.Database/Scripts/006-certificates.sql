@@ -155,7 +155,7 @@ CREATE INDEX IF NOT EXISTS ix_penalty_captures_certificate
     ON penalty_captures (payment_certificate_id);
 
 COMMENT ON TABLE penalty_captures IS
-    'A.4. One penalty recorded against a certificate by Operator Staff (UC4) or Monitor (UC5), reviewed by an Authoriser (UC6). While Submitted: Operator Staff edits/deletes own records only, Monitor edits/deletes any (asymmetric, confirmed). Spec requires HARD delete with the audit log preserving the record - one of only two tables the application role may DELETE from. Rejected/Under Dispute stay re-reviewable until the certificate is Approved, at which point every capture locks regardless of status (UC6 3b - the only permanent lock).';
+    'A.4. One penalty recorded against a certificate by Operator Staff (UC4) or Monitor (UC5), reviewed by an Authoriser (UC6). While Submitted: Operator Staff edits/deletes own records only, Monitor edits/deletes any (asymmetric, confirmed). Deletion is soft (is_active FALSE) by owner decision - the spec''s UC4 4b says permanently removed, but the audit Delete entry and the is_active filter on the uniqueness index preserve every observable behaviour while keeping the row as evidence. Rejected/Under Dispute stay re-reviewable until the certificate is Approved, at which point every capture locks regardless of status (UC6 3b - the only permanent lock).';
 COMMENT ON COLUMN penalty_captures.penalty_code IS
     'A.4: copied from the penalty list item at capture time for display and reporting without a join, and so the trip/code uniqueness rule survives a catalogue edit.';
 COMMENT ON COLUMN penalty_captures.vehicle_id IS
@@ -241,7 +241,7 @@ CREATE INDEX IF NOT EXISTS ix_form_f1_records_certificate
     ON form_f1_records (payment_certificate_id);
 
 COMMENT ON TABLE form_f1_records IS
-    'A.6. Trip-level exception: Breakdown, Roadworthy Non-Conformance, or Standing Trip. Unlike penalties, Approved and Rejected are TERMINAL here (UC9 2a) and a status reason is mandatory on every change including Approved - both confirmed, intentional divergences. Hard delete while Submitted, same as penalty_captures.';
+    'A.6. Trip-level exception: Breakdown, Roadworthy Non-Conformance, or Standing Trip. Unlike penalties, Approved and Rejected are TERMINAL here (UC9 2a) and a status reason is mandatory on every change including Approved - both confirmed, intentional divergences. Soft delete while Submitted, same as penalty_captures.';
 COMMENT ON COLUMN form_f1_records.dno_reason_id IS
     'Populated only when the record was created by converting an AFC-determined DNO to a Standing Trip (UC8 2b). The AFC feed itself does not exist yet; the reference list and this column are ready for it.';
 

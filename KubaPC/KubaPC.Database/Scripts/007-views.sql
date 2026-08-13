@@ -172,3 +172,139 @@ WHERE bh.is_active AND pc.is_active;
 
 COMMENT ON VIEW v_form_bh_ledger IS
     'Form B&H ledger rows with contract and certificate context. DELIBERATELY EXCLUDES budget_minor: the budget is visible to DOT alone (A.7), so it must never travel through the general-purpose view - the DOT screen queries the table directly under its own authorisation check.';
+
+
+-- =========================================================================
+--  Landing grids
+--
+--  Every section where values are editable opens on a grid: the key
+--  figures, and who last changed each row. The row's Edit button then
+--  opens the detail page. These views feed those grids - they resolve the
+--  modified_by / created_by identifiers to account names so the grid can
+--  say "R 4 000.00 - last changed by T. Ndlovu, 2026-08-02" without every
+--  screen repeating the same joins.
+--
+--  last_changed_by/at prefer the most recent edit and fall back to the
+--  creation, so a never-edited row still shows who made it.
+-- =========================================================================
+
+-- Penalty catalogue grid (Admin's landing page for UC3).
+CREATE OR REPLACE VIEW v_grid_penalty_list_items AS
+SELECT
+    pli.id,
+    c.contract_number,
+    pli.penalty_code,
+    pli.description,
+    pli.penalty_type,
+    pli.penalty_formula,
+    pli.rand_amount_minor,
+    pli.revenue_type,
+    pli.repeat_penalty_escalation_enabled,
+    pli.is_active,
+    COALESCE(am.full_name, ac.full_name)      AS last_changed_by,
+    COALESCE(pli.modified_at, pli.created_at) AS last_changed_at
+FROM penalty_list_items pli
+JOIN contracts c  ON c.id = pli.contract_id
+LEFT JOIN accounts am ON am.id = pli.modified_by
+LEFT JOIN accounts ac ON ac.id = pli.created_by;
+
+COMMENT ON VIEW v_grid_penalty_list_items IS
+    'Landing grid for the penalty catalogue: amounts and who last changed each item. Includes inactive rows so the grid can offer a show-retired filter; the capture screens must still filter is_active themselves.';
+
+
+-- Contract rates grid.
+CREATE OR REPLACE VIEW v_grid_contract_rates AS
+SELECT
+    cr.id,
+    c.contract_number,
+    cr.operated_rate_per_km_minor,
+    cr.standing_rate_per_km_minor,
+    cr.effective_from_date,
+    cr.effective_to_date,
+    (cr.effective_to_date IS NULL)           AS is_current,
+    cr.is_active,
+    COALESCE(am.full_name, ac.full_name)     AS last_changed_by,
+    COALESCE(cr.modified_at, cr.created_at)  AS last_changed_at
+FROM contract_rates cr
+JOIN contracts c  ON c.id = cr.contract_id
+LEFT JOIN accounts am ON am.id = cr.modified_by
+LEFT JOIN accounts ac ON ac.id = cr.created_by;
+
+COMMENT ON VIEW v_grid_contract_rates IS
+    'Landing grid for contract rates. Shows the full dated history per contract; is_current marks the row in force.';
+
+
+-- Escalation parameters grid.
+CREATE OR REPLACE VIEW v_grid_escalation_parameters AS
+SELECT
+    ep.id,
+    c.contract_number,
+    ep.labour_weight,
+    ep.fuel_weight,
+    ep.cpi_weight,
+    ep.base_month,
+    ep.base_year,
+    ep.labour_base_value,
+    ep.fuel_base_value,
+    ep.cpi_base_value,
+    ep.is_active,
+    COALESCE(am.full_name, ac.full_name)     AS last_changed_by,
+    COALESCE(ep.modified_at, ep.created_at)  AS last_changed_at
+FROM escalation_parameters ep
+JOIN contracts c  ON c.id = ep.contract_id
+LEFT JOIN accounts am ON am.id = ep.modified_by
+LEFT JOIN accounts ac ON ac.id = ep.created_by;
+
+COMMENT ON VIEW v_grid_escalation_parameters IS
+    'Landing grid for Form D parameters (UC15): the weights and base values per contract, and who last changed them.';
+
+
+-- Penalty captures grid (the Penalties tab landing page, UC4/5/6).
+CREATE OR REPLACE VIEW v_grid_penalty_captures AS
+SELECT
+    p.id,
+    p.payment_certificate_id,
+    pc.certificate_number,
+    p.penalty_code,
+    pli.description                          AS penalty_description,
+    r.route_number,
+    p.captured_by_role,
+    p.capture_status,
+    p.repeat_escalation_applied,
+    p.effective_rand_amount_minor,
+    pli.rand_amount_minor                    AS catalogue_amount_minor,
+    p.is_active,
+    COALESCE(am.full_name, ac.full_name)     AS last_changed_by,
+    COALESCE(p.modified_at, p.created_at)    AS last_changed_at
+FROM penalty_captures p
+JOIN payment_certificates pc  ON pc.id = p.payment_certificate_id
+JOIN penalty_list_items pli   ON pli.id = p.penalty_list_item_id
+JOIN routes r                 ON r.id = p.route_id
+LEFT JOIN accounts am ON am.id = p.modified_by
+LEFT JOIN accounts ac ON ac.id = p.created_by
+WHERE p.is_active;
+
+COMMENT ON VIEW v_grid_penalty_captures IS
+    'Landing grid for the Penalties tab: every capture on a certificate with its status, amount (catalogue amount until approval fixes effective_rand_amount_minor), and who last changed it. Soft-deleted rows excluded - they are visible through the audit log, not the grid.';
+
+
+-- Form G2 refundable amounts grid.
+CREATE OR REPLACE VIEW v_grid_form_g2_amounts AS
+SELECT
+    g2.id,
+    g2.payment_certificate_id,
+    pc.certificate_number,
+    g2.refundable_penalty_type,
+    g2.sub_refundable_penalty_type,
+    g2.rand_amount_minor,
+    g2.is_active,
+    COALESCE(am.full_name, ac.full_name)     AS last_changed_by,
+    COALESCE(g2.modified_at, g2.created_at)  AS last_changed_at
+FROM form_g2_refundable_amounts g2
+JOIN payment_certificates pc ON pc.id = g2.payment_certificate_id
+LEFT JOIN accounts am ON am.id = g2.modified_by
+LEFT JOIN accounts ac ON ac.id = g2.created_by
+WHERE g2.is_active;
+
+COMMENT ON VIEW v_grid_form_g2_amounts IS
+    'Landing grid for Form G2 refundable amounts: the captured Rand values per type combination and who last changed them.';

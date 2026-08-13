@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS ix_audit_logs_changed_at
     ON audit_logs (changed_at);
 
 COMMENT ON TABLE audit_logs IS
-    'A.30. Every Create/Update/Delete across every module writes here - confirmed as a blanket rule. Append-only: the application may insert, never update or delete. For the hard deletes the spec requires on penalty_captures and form_f1_records, the Delete entry with old_values IS the surviving record.';
+    'A.30. Every Create/Update/Delete across every module writes here - confirmed as a blanket rule. Append-only: the application may insert, never update or delete. A Delete action means a soft delete (is_active set FALSE); no table grants physical DELETE.';
 COMMENT ON COLUMN audit_logs.action_reason IS
     'A.30 Reason (the shared-table change this module introduced): mandatory when the action is an Update or Delete by Operator Staff or Monitor on a Form F1 record or penalty capture; optional elsewhere. Application-enforced.';
 
@@ -41,9 +41,15 @@ COMMENT ON COLUMN audit_logs.action_reason IS
 --
 --  kubapc_app (ordinary connection):
 --    read, insert, update everywhere EXCEPT the six money catalogues,
---    which are read-only; DELETE on exactly the two tables where the spec
---    requires physical deletion (penalty_captures, form_f1_records - UC4
---    4b, UC8 4b); audit_logs insert-only.
+--    which are read-only; audit_logs insert-only. NO DELETE anywhere.
+--
+--    Owner's decision, recorded as a deviation from the spec: UC4 4b and
+--    UC8 4b say a Submitted penalty or F1 record is "permanently removed".
+--    Here deletion is soft (is_active = FALSE) instead. Every observable
+--    spec behaviour is preserved - the record disappears from screens, the
+--    audit log gets its Delete entry, and the trip/code uniqueness indexes
+--    filter on is_active so the combination is freed for a new record -
+--    but the row itself survives as evidence.
 --
 --  kubapc_administrator (assumed per-transaction via SET LOCAL ROLE):
 --    read, insert, update on the six money catalogues. Still no delete -
@@ -79,10 +85,6 @@ GRANT SELECT, INSERT, UPDATE ON penalty_list_items,
                                 dno_reasons,
                                 income_field_configurations
     TO kubapc_administrator;
-
--- The spec's two hard-delete tables, and nothing else.
-GRANT DELETE ON penalty_captures TO kubapc_app;
-GRANT DELETE ON form_f1_records TO kubapc_app;
 
 -- Audit log: append-only. Rescind the blanket UPDATE granted above.
 REVOKE UPDATE ON audit_logs FROM kubapc_app;
