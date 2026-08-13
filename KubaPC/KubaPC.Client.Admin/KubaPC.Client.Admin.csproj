@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!--
+      The API hosts both Blazor WebAssembly clients from one site. Without a base
+      path each client publishes its runtime to _framework/ at the site root, and
+      the two sets of files collide on any assembly they share (build error
+      NET-SDK "Conflicting assets with the same target path"). Giving each client
+      its own base path moves the runtime to admin/_framework/ and keeps the two
+      apart. The value must match the branch this client is mapped to in
+      KubaPC.API/Startup.cs.
+    -->
+    <StaticWebAssetBasePath>admin</StaticWebAssetBasePath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KubaPC.SharedClient.Components\KubaPC.SharedClient.Components.csproj" />
+    <ProjectReference Include="..\KubaPC.SharedClient.Services\KubaPC.SharedClient.Services.csproj" />
+  </ItemGroup>
+
+</Project>

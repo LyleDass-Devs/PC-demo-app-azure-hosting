@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="KubaPC.API/KubaPC.API.csproj" />
+  <Project Path="KubaPC.Client.Admin/KubaPC.Client.Admin.csproj" />
+  <Project Path="KubaPC.Client.Operator/KubaPC.Client.Operator.csproj" />
+  <Project Path="KubaPC.Database/KubaPC.Database.csproj" />
+  <Project Path="KubaPC.Import/KubaPC.Import.csproj" />
+  <Project Path="KubaPC.Models/KubaPC.Models.csproj" />
+  <Project Path="KubaPC.Services.Tests/KubaPC.Services.Tests.csproj" />
+  <Project Path="KubaPC.Services/KubaPC.Services.csproj" />
+  <Project Path="KubaPC.SharedClient.Components/KubaPC.SharedClient.Components.csproj" />
+  <Project Path="KubaPC.SharedClient.Services/KubaPC.SharedClient.Services.csproj" />
+</Solution>
