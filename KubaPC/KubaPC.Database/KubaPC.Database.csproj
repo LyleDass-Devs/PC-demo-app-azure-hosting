@@ -1,9 +1,28 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!--
+      This project holds SQL, not C#. There is no PostgreSQL equivalent of the
+      SQL Server database project type in Visual Studio, so a plain class
+      library is used as the container: it gives the scripts a home in the
+      solution, keeps them under source control beside the code that depends on
+      them, and lets the build copy them somewhere the deployment tooling can
+      find.
+    -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Every script travels inside the assembly. Embedding rather than copying
+      loose files means a deployed build cannot end up with code from one
+      version and scripts from another.
+    -->
+    <EmbeddedResource Include="Scripts\**\*.sql" />
+    <None Include="Seed\**\*.sql" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>
