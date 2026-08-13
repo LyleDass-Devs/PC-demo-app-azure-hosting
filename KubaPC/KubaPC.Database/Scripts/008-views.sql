@@ -1,5 +1,5 @@
 -- =========================================================================
---  007 - Views: the forms as queries
+--  008 - Views: the forms as queries
 --
 --  The forms are mostly presentations of data that already exists. Where
 --  the spec says a figure is "calculated live" until approval, that live
@@ -8,7 +8,7 @@
 --
 --  CREATE OR REPLACE VIEW makes every statement safely re-runnable.
 --
---  Run after 006. Safe to re-run.
+--  Run after 007. Safe to re-run.
 -- =========================================================================
 
 -- Form E (live): the Amount for Escalation.

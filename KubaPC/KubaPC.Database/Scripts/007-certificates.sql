@@ -1,5 +1,5 @@
 -- =========================================================================
---  006 - The payment certificate and its forms
+--  007 - The payment certificate and its forms
 --
 --  Spec tables A.1 (certificate), A.2 (trip lines), A.4 (penalty captures),
 --  A.5 (Form G2 amounts), A.6 (Form F1 records), A.7 (Form B&H ledger),
@@ -16,7 +16,7 @@
 --      unlock is a row in certificate_lock_events with who, when, and why.
 --      Enforcement is application-side; the trail is database-side.
 --
---  Run after 005. Safe to re-run.
+--  Run after 006. Safe to re-run.
 -- =========================================================================
 
 -- A.1 Payment Certificate.
@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS payment_certificates (
     contract_id             uuid NOT NULL REFERENCES contracts (id),
     certificate_number      text NOT NULL,
     certificate_period      date NOT NULL,
-    certificate_status      text NOT NULL DEFAULT 'Draft',
+    certificate_status      text NOT NULL DEFAULT 'Draft'
+                            REFERENCES certificate_statuses (status_value),
     total_trips_scheduled   integer NOT NULL DEFAULT 0,
     total_trips_completed   integer NOT NULL DEFAULT 0,
     notes                   text,
@@ -38,11 +39,7 @@ CREATE TABLE IF NOT EXISTS payment_certificates (
     created_at              timestamptz NOT NULL DEFAULT now(),
     created_by              uuid,
     modified_at             timestamptz,
-    modified_by             uuid,
-
-    -- A.1.1 reference list, exactly.
-    CONSTRAINT ck_payment_certificates_status
-        CHECK (certificate_status IN ('Draft', 'Submitted', 'Approved', 'Rejected'))
+    modified_by             uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_payment_certificates_contract_period
     ON payment_certificates (contract_id, certificate_period) WHERE is_active;
@@ -97,16 +94,13 @@ CREATE TABLE IF NOT EXISTS certificate_trip_lines (
     payment_certificate_id  uuid NOT NULL REFERENCES payment_certificates (id),
     trip_id                 uuid NOT NULL REFERENCES trips (id),
     trip_date               date NOT NULL,
-    completion_status       text NOT NULL,
+    completion_status       text NOT NULL
+                            REFERENCES trip_completion_statuses (status_value),
     is_active               boolean     NOT NULL DEFAULT TRUE,
     created_at              timestamptz NOT NULL DEFAULT now(),
     created_by              uuid,
     modified_at             timestamptz,
-    modified_by             uuid,
-
-    -- A.2.1 reference list.
-    CONSTRAINT ck_certificate_trip_lines_completion
-        CHECK (completion_status IN ('Completed', 'Not Completed'))
+    modified_by             uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_certificate_trip_lines_certificate_trip
     ON certificate_trip_lines (payment_certificate_id, trip_id) WHERE is_active;
@@ -121,14 +115,16 @@ COMMENT ON TABLE certificate_trip_lines IS
 CREATE TABLE IF NOT EXISTS penalty_captures (
     id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     payment_certificate_id      uuid NOT NULL REFERENCES payment_certificates (id),
-    captured_by_role            text NOT NULL,
+    captured_by_role            text NOT NULL
+                                REFERENCES captured_by_roles (role_value),
     route_id                    uuid NOT NULL REFERENCES routes (id),
     trip_id                     uuid NOT NULL REFERENCES trips (id),
     trip_detail                 text,
     vehicle_id                  uuid REFERENCES vehicles (id),
     penalty_list_item_id        uuid NOT NULL REFERENCES penalty_list_items (id),
     penalty_code                text NOT NULL,
-    capture_status              text NOT NULL DEFAULT 'Submitted',
+    capture_status              text NOT NULL DEFAULT 'Submitted'
+                                REFERENCES review_statuses (status_value),
     status_reason               text,
     status_updated_by           uuid REFERENCES accounts (id),
     status_updated_at           timestamptz,
@@ -138,13 +134,7 @@ CREATE TABLE IF NOT EXISTS penalty_captures (
     created_at                  timestamptz NOT NULL DEFAULT now(),
     created_by                  uuid,
     modified_at                 timestamptz,
-    modified_by                 uuid,
-
-    -- A.4.1 / A.4.2 reference lists.
-    CONSTRAINT ck_penalty_captures_captured_by_role
-        CHECK (captured_by_role IN ('Operator Staff', 'Monitor')),
-    CONSTRAINT ck_penalty_captures_status
-        CHECK (capture_status IN ('Submitted', 'Approved', 'Rejected', 'Under Dispute'))
+    modified_by                 uuid
 );
 -- Use Case 4, 2a: at most one non-Rejected capture per trip and penalty code,
 -- regardless of capturing role. The database enforces exactly the spec rule.
@@ -172,25 +162,16 @@ COMMENT ON COLUMN penalty_captures.effective_rand_amount_minor IS
 CREATE TABLE IF NOT EXISTS form_g2_refundable_amounts (
     id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     payment_certificate_id      uuid NOT NULL REFERENCES payment_certificates (id),
-    refundable_penalty_type     text NOT NULL,
-    sub_refundable_penalty_type text NOT NULL,
+    refundable_penalty_type     text NOT NULL
+                                REFERENCES refundable_penalty_types (type_value),
+    sub_refundable_penalty_type text NOT NULL
+                                REFERENCES sub_refundable_penalty_types (type_value),
     rand_amount_minor           bigint NOT NULL,
     is_active                   boolean     NOT NULL DEFAULT TRUE,
     created_at                  timestamptz NOT NULL DEFAULT now(),
     created_by                  uuid,
     modified_at                 timestamptz,
-    modified_by                 uuid,
-
-    -- A.5.1 / A.5.2 reference lists, verbatim.
-    CONSTRAINT ck_form_g2_refundable_type
-        CHECK (refundable_penalty_type IN ('Deductible Refundable', 'Released Refundable')),
-    CONSTRAINT ck_form_g2_sub_type
-        CHECK (sub_refundable_penalty_type IN (
-            'Approved Vehicles Not Operated',
-            'Failure to Provide Information',
-            'Failure to Provide Information (<80% of Patronage)',
-            'For Approved Ticket Machines Not Used',
-            'Failure to Provide Customer Complaints Policy'))
+    modified_by                 uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_form_g2_certificate_combination
     ON form_g2_refundable_amounts
@@ -207,12 +188,15 @@ CREATE TABLE IF NOT EXISTS form_f1_records (
     payment_certificate_id  uuid NOT NULL REFERENCES payment_certificates (id),
     route_id                uuid NOT NULL REFERENCES routes (id),
     trip_id                 uuid NOT NULL REFERENCES trips (id),
-    record_type             text NOT NULL,
+    record_type             text NOT NULL
+                            REFERENCES form_f1_record_types (type_value),
     reason                  text NOT NULL,
     dno_reason_id           uuid REFERENCES dno_reasons (id),
     dno_explanation         text,
-    captured_by_role        text NOT NULL,
-    record_status           text NOT NULL DEFAULT 'Submitted',
+    captured_by_role        text NOT NULL
+                            REFERENCES captured_by_roles (role_value),
+    record_status           text NOT NULL DEFAULT 'Submitted'
+                            REFERENCES review_statuses (status_value),
     status_reason           text,
     status_updated_by       uuid REFERENCES accounts (id),
     status_updated_at       timestamptz,
@@ -222,13 +206,6 @@ CREATE TABLE IF NOT EXISTS form_f1_records (
     modified_at             timestamptz,
     modified_by             uuid,
 
-    -- A.6.1 / A.6.2 / A.6.3 reference lists.
-    CONSTRAINT ck_form_f1_record_type
-        CHECK (record_type IN ('Breakdown', 'Roadworthy Non-Conformance', 'Standing Trip')),
-    CONSTRAINT ck_form_f1_captured_by_role
-        CHECK (captured_by_role IN ('Operator Staff', 'Monitor')),
-    CONSTRAINT ck_form_f1_status
-        CHECK (record_status IN ('Submitted', 'Approved', 'Rejected', 'Under Dispute')),
     -- A.6: a DNO conversion must carry both the reason and the explanation.
     CONSTRAINT ck_form_f1_dno_pair
         CHECK (dno_reason_id IS NULL OR dno_explanation IS NOT NULL)

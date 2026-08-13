@@ -1,5 +1,5 @@
 -- =========================================================================
---  008 - Audit log and permissions
+--  009 - Audit log and permissions
 --
 --  Run last, as postgres. Safe to re-run.
 -- =========================================================================
@@ -85,6 +85,21 @@ GRANT SELECT, INSERT, UPDATE ON penalty_list_items,
                                 dno_reasons,
                                 income_field_configurations
     TO kubapc_administrator;
+
+-- The reference lists (script 003) carry the specification's fixed values.
+-- Nobody writes them at runtime - not even the elevated role. A new value
+-- is a new script, through review.
+REVOKE INSERT, UPDATE ON certificate_statuses,
+                        trip_completion_statuses,
+                        revenue_types,
+                        penalty_types,
+                        captured_by_roles,
+                        review_statuses,
+                        refundable_penalty_types,
+                        sub_refundable_penalty_types,
+                        form_f1_record_types,
+                        url_keys
+    FROM kubapc_app;
 
 -- Audit log: append-only. Rescind the blanket UPDATE granted above.
 REVOKE UPDATE ON audit_logs FROM kubapc_app;

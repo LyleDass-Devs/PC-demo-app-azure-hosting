@@ -1,5 +1,5 @@
 -- =========================================================================
---  005 - Derived operational data
+--  006 - Derived operational data
 --
 --  These stand in for the shared KubaOps tables the spec references:
 --  routes for A.31 GTFS Route, trips for A.32 GTFS Trip. Derived from the
@@ -7,7 +7,7 @@
 --  identifiers resolved, names plain English. The certificate and every
 --  form read these, never the landing tables.
 --
---  Run after 004. Safe to re-run.
+--  Run after 005. Safe to re-run.
 -- =========================================================================
 
 -- A.31 GTFS Route equivalent.

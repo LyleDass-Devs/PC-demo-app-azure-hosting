@@ -1,5 +1,5 @@
 -- =========================================================================
---  003 - The money catalogues
+--  004 - The money catalogues
 --
 --  Everything here is edited through the application by specific roles
 --  (spec RBAC), under the elevated kubapc_administrator database role
@@ -12,7 +12,7 @@
 --    dno_reasons                 SuperAdmin only               A.14
 --    income_field_configurations Admin                          A.16
 --
---  Run after 002. Safe to re-run.
+--  Run after 003. Safe to re-run.
 -- =========================================================================
 
 -- A.3 Penalty List Item - the per-contract penalty catalogue.
@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS penalty_list_items (
     description                        text NOT NULL,
     penalty_formula                    text,
     rand_amount_minor                  bigint,
-    revenue_type                       text,
-    penalty_type                       text NOT NULL,
+    revenue_type                       text REFERENCES revenue_types (revenue_type_value),
+    penalty_type                       text NOT NULL REFERENCES penalty_types (penalty_type_value),
     repeat_penalty_escalation_enabled  boolean NOT NULL DEFAULT FALSE,
     is_active                          boolean     NOT NULL DEFAULT TRUE,
     created_at                         timestamptz NOT NULL DEFAULT now(),
@@ -34,19 +34,7 @@ CREATE TABLE IF NOT EXISTS penalty_list_items (
 
     -- A.3: at least one of the two pricing mechanisms must be present.
     CONSTRAINT ck_penalty_list_items_priced
-        CHECK (rand_amount_minor IS NOT NULL OR penalty_formula IS NOT NULL),
-    -- A.3.1
-    CONSTRAINT ck_penalty_list_items_revenue_type
-        CHECK (revenue_type IS NULL OR revenue_type IN ('Revenue', 'Non-Revenue')),
-    -- A.3.2
-    CONSTRAINT ck_penalty_list_items_penalty_type
-        CHECK (penalty_type IN (
-            'Trips Not Operated',
-            'Time-Related Offences',
-            'Unsatisfactory Vehicle Condition',
-            'Unroadworthy',
-            'Stop & Route Adherence',
-            'Duty & Destination Boards'))
+        CHECK (rand_amount_minor IS NOT NULL OR penalty_formula IS NOT NULL)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_penalty_list_items_contract_code
     ON penalty_list_items (contract_id, penalty_code) WHERE is_active;
@@ -129,17 +117,13 @@ COMMENT ON COLUMN escalation_parameters.cpi_weight IS
 -- A.10 Reference URL - system-wide, SuperAdmin only.
 CREATE TABLE IF NOT EXISTS reference_urls (
     id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    url_key      text NOT NULL,
+    url_key      text NOT NULL REFERENCES url_keys (key_value),
     url_value    text NOT NULL,
     is_active    boolean     NOT NULL DEFAULT TRUE,
     created_at   timestamptz NOT NULL DEFAULT now(),
     created_by   uuid,
     modified_at  timestamptz,
-    modified_by  uuid,
-
-    -- A.10.1. A Labour source would be a third value once the client names one.
-    CONSTRAINT ck_reference_urls_url_key
-        CHECK (url_key IN ('Fuel Price Source', 'CPI Source'))
+    modified_by  uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_reference_urls_url_key
     ON reference_urls (url_key) WHERE is_active;

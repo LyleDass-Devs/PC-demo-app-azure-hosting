@@ -1,5 +1,5 @@
 -- =========================================================================
---  004 - Imported report data (landing tables)
+--  005 - Imported report data (landing tables)
 --
 --  Your requirement: store almost every field from every report, so the
 --  data is already there when the app's use cases extend. Each landing
@@ -12,7 +12,7 @@
 --  column-by-column against the file. Nothing calculates money from a
 --  landing table - the derived tables in 005 do that.
 --
---  Run after 003. Safe to re-run.
+--  Run after 004. Safe to re-run.
 -- =========================================================================
 
 CREATE TABLE IF NOT EXISTS import_batches (
