@@ -1,7 +1,12 @@
 -- =========================================================================
 --  009 - Audit log and permissions
 --
---  Run last, as postgres. Safe to re-run.
+--  Run as postgres, after 008. Safe to re-run UP TO script 009. ONCE 010
+--  HAS RUN, DO NOT RE-RUN THIS FILE: the blanket GRANT below would
+--  silently re-grant table-level UPDATE on form_c_records, form_a_records
+--  and certificate_lock_events, and INSERT/UPDATE on roles - all revoked
+--  by 010 - and nothing here errors to warn you. Scripts are forward-only
+--  once a later script has changed the same grants.
 -- =========================================================================
 
 -- A.30 Audit Log, including the Reason field added to the shared table for

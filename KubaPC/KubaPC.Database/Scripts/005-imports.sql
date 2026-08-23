@@ -10,7 +10,11 @@
 --  Landing tables keep source column names (a deliberate, documented
 --  exception to plain-English naming) so an import can be audited
 --  column-by-column against the file. Nothing calculates money from a
---  landing table - the derived tables in 005 do that.
+--  landing table - the derived tables in 006 do that.
+--
+--  SAEIV = Systeme d'Aide a l'Exploitation et a l'Information Voyageurs,
+--  the French-built operations-and-passenger-information system whose
+--  exports the saeiv_* tables land.
 --
 --  Run after 004. Safe to re-run.
 -- =========================================================================

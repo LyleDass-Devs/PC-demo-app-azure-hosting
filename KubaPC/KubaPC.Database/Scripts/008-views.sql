@@ -6,9 +6,16 @@
 --  calculation is a view here; the approval snapshot tables (form_c_records,
 --  form_a_records) freeze the same figures permanently.
 --
---  CREATE OR REPLACE VIEW makes every statement safely re-runnable.
+--  CREATE OR REPLACE VIEW makes every statement safely re-runnable UP TO
+--  script 009. ONCE 010 HAS RUN, DO NOT RE-RUN THIS FILE: 010 supersedes
+--  v_form_e, v_form_d, v_form_c and v_form_bh_ledger, and drops two
+--  form_bh_records columns this file still references - a re-run here
+--  would partially revert the fixes and then error mid-file (first at
+--  v_form_c, whose appended column CREATE OR REPLACE cannot drop).
+--  Scripts are forward-only once a later script has changed the same
+--  objects.
 --
---  Run after 007. Safe to re-run.
+--  Run after 007.
 -- =========================================================================
 
 -- Form E (live): the Amount for Escalation.

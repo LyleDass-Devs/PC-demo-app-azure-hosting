@@ -16,6 +16,9 @@
 --                               catalogue". Seeded so screens have real
 --                               shapes to build against; every amount needs
 --                               confirmation before production.
+--    Escalation parameters      Deliberately NOT seeded - the spec and the
+--                               workbook disagree on the formula (guide 06
+--                               section 7); details above the catalogue.
 --
 --  Safe to re-run: inserts only what is missing.
 -- =========================================================================
@@ -48,12 +51,29 @@ WHERE c.contract_number = 'ZNT 1129' AND c.is_active
       SELECT 1 FROM contract_rates r WHERE r.contract_id = c.id AND r.is_active
   );
 
--- The penalty catalogue, spec A.3.0 verbatim. Where the sample leaves the
--- Rand amount blank, the penalty is priced by its free-text formula alone
--- (which the system deliberately does not evaluate - A.3). Code 10 is a
--- parent heading in the sample with neither amount nor formula; it is given
--- an explanatory formula text here so the at-least-one-price constraint
--- holds, and its sub-codes 10.1-10.4 carry the actual amounts.
+-- The penalty catalogue, from the spec's A.3.0 example, with every
+-- departure from that example disclosed (review F13):
+--
+--   * Code 10 is a parent heading in the sample with neither amount nor
+--     formula; it is given an explanatory formula text here so the
+--     at-least-one-price constraint holds, and its sub-codes 10.1-10.4
+--     carry the amounts.
+--   * Codes 4 and 11 also have BOTH pricing fields blank in the sample;
+--     they are given placeholder formula text here ('Treated as not
+--     operated', 'No revenue kms') for the same constraint reason.
+--   * Codes 10.1-10.4, 13 and 14 have a blank Rand Amount in the sample;
+--     the amounts seeded here are derived from their per-unit formula
+--     strings (R150/bus -> 15000 cents, and so on). These derived figures
+--     would flow into Form E if approved - replace them with Kuba's real
+--     catalogue before production use.
+--
+-- Where neither note applies and the sample leaves the Rand amount blank,
+-- the penalty is priced by its free-text formula alone (which the system
+-- deliberately does not evaluate - A.3).
+--
+-- escalation_parameters is deliberately NOT seeded for ZNT 1129: the spec
+-- and the sample workbook disagree on the escalation formula (guide 06,
+-- section 7), so the weights and base values wait for Kuba's confirmation.
 INSERT INTO penalty_list_items
     (contract_id, penalty_code, description, penalty_formula,
      rand_amount_minor, revenue_type, penalty_type)
