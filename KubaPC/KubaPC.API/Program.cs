@@ -1,6 +1,26 @@
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using FastEndpoints;
 
-app.MapGet("/", () => "Hello World!");
+namespace KubaPC.API
+{
+    public static class Program
+    {
+        public static void Main(string[] args)
+        {
+            WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-app.Run();
+            builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
+            builder.Host.ConfigureContainer<ContainerBuilder>(StartupExtensions.ConfigureContainer);
+
+            builder.Services.AddFastEndpoints();
+
+            WebApplication app = builder.Build();
+
+            app.RunTimeEnvironment();
+            app.UseFastEndpoints();
+
+            app.Run();
+        }
+    }
+}
