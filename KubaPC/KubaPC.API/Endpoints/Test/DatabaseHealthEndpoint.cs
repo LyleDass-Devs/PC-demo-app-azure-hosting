@@ -28,7 +28,7 @@ namespace KubaPC.API.Endpoints.Test
                 long roleCount = await _dataAccess.QuerySingleOrDefaultAsync<long>("Select count(*) From roles where is_active");
                 Response = new DatabaseHealthResponse(roleCount);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 throw;
             }

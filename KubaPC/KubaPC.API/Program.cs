@@ -13,11 +13,15 @@ namespace KubaPC.API
             builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
             builder.Host.ConfigureContainer<ContainerBuilder>(StartupExtensions.ConfigureContainer);
 
+            builder.BuildAuthentication();
+            builder.BuildAPIAuthorization();
             builder.Services.AddFastEndpoints();
 
             WebApplication app = builder.Build();
 
             app.RunTimeEnvironment();
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.UseFastEndpoints();
 
             app.Run();

@@ -13,6 +13,12 @@ namespace KubaPC.Services.Data
     {
         private const string CONNECTION_STRING_NAME = "KubaPCDatabase";
         private readonly string _connectionString;
+
+        static NpgsqlDataAccess()
+        {
+            DefaultTypeMap.MatchNamesWithUnderscores = true;                                
+        }
+
         public NpgsqlDataAccess(IConfiguration configuration)
         {
             string? connectionString = configuration.GetConnectionString(CONNECTION_STRING_NAME);
