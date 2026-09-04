@@ -1,5 +1,6 @@
 ﻿using Autofac;
 using KubaPC.API.Factories;
+using KubaPC.API.Providers;
 using KubaPC.Models.Internal;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -78,6 +79,11 @@ namespace KubaPC.API
                 o.AddPolicy("Authoriser", p => p.RequireRole("SuperAdmin", "Authoriser"));
                 o.AddPolicy("DOT", p => p.RequireRole("SuperAdmin", "DOT"));
             });
+        }
+
+        public static void BuildDatabaseLogging(this WebApplicationBuilder builder)
+        {
+            builder.Services.AddSingleton<ILoggerProvider, DBErrorLoggerProvider>();
         }
     }
 }

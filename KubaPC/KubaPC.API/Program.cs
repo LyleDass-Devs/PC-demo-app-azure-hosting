@@ -15,6 +15,7 @@ namespace KubaPC.API
 
             builder.BuildAuthentication();
             builder.BuildAPIAuthorization();
+            builder.BuildDatabaseLogging();
             builder.Services.AddFastEndpoints();
 
             WebApplication app = builder.Build();
