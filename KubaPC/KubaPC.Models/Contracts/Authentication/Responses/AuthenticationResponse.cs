@@ -12,5 +12,7 @@ namespace KubaPC.Models.Contracts.Authentication.Responses
         public List<string> Roles { get; set; } = new();
         public string Token { get; set; } = string.Empty;
         public DateTime TokenExpireDate { get; set; }
+        public bool MustChangePassword { get; set; }
+
     }
 }

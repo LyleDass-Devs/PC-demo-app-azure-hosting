@@ -23,6 +23,7 @@ namespace KubaPC.API
             app.RunTimeEnvironment();
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseMiddleware<KubaPC.API.Middleware.PasswordChangeMiddleware>();
             app.UseFastEndpoints();
 
             app.Run();

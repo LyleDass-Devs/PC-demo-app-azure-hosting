@@ -33,6 +33,11 @@ namespace KubaPC.Services.Helpers
                 }
             }
 
+            if (tokenData.MustChangePassword)
+            {
+                claims.Add(new Claim("PasswordChangeRequired", "true"));
+            }
+
             SecurityTokenDescriptor descriptor = new()
             {
                 Subject = new ClaimsIdentity(claims),
@@ -51,7 +56,8 @@ namespace KubaPC.Services.Helpers
                 EmailAddress = tokenData.User.EmailAddress,
                 Roles = tokenData.UserRoles,
                 Token = bearer,
-                TokenExpireDate = expiration
+                TokenExpireDate = expiration,
+                MustChangePassword = tokenData.MustChangePassword
             };
         }
     }

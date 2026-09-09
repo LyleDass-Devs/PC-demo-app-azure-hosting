@@ -8,6 +8,8 @@ namespace KubaPC.Models.Internal
     {
         public LoggedInUserModel User { get; set; } = new();
         public List<string> UserRoles { get; set; } = new();
+        public bool MustChangePassword { get; set; }
+
 
     }
 }

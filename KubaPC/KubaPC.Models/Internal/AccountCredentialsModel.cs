@@ -10,5 +10,7 @@ namespace KubaPC.Models.Internal
         public string EmailAddress { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string? PasswordHash { get; set; } = string.Empty;
+        public bool MustChangePassword { get; set; }
     }
 }
+ 
