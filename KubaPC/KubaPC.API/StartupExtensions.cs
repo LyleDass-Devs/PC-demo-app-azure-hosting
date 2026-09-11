@@ -10,6 +10,7 @@ namespace KubaPC.API
 {
     public static class StartupExtensions
     {
+        public const string CLIENT_CORS_POLICY = "KubaPCClients";
         public static void RunTimeEnvironment(this WebApplication app)
         {
             if (app.Environment.IsDevelopment())
@@ -80,6 +81,27 @@ namespace KubaPC.API
                 o.AddPolicy("DOT", p => p.RequireRole("SuperAdmin", "DOT"));
             });
         }
+
+        public static void BuildCors(this WebApplicationBuilder builder)
+        {
+            string[] origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
+
+            if (origins.Length == 0)
+            {
+                throw new InvalidOperationException("Cors:Origins is not configured. The Blazor clients cannot call the API without it.");
+            }
+
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy(CLIENT_CORS_POLICY, policy => policy
+                .WithOrigins(origins)
+                .WithMethods("GET", "POST", "PUT", "OPTIONS")
+                .WithHeaders("Authorization", "Content-Type")
+                .WithExposedHeaders("Authorization")
+                .SetPreflightMaxAge(TimeSpan.FromMinutes(10)));
+            });
+        }
+
 
         public static void BuildDatabaseLogging(this WebApplicationBuilder builder)
         {

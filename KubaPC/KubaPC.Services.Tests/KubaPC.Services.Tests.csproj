@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\KubaPC.Models\KubaPC.Models.csproj" />
     <ProjectReference Include="..\KubaPC.Services\KubaPC.Services.csproj" />
+    <ProjectReference Include="..\KubaPC.SharedClient.Services\KubaPC.SharedClient.Services.csproj" />
   </ItemGroup>
 
 </Project>

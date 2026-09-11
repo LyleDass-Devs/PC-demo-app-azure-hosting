@@ -8,8 +8,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\KubaPC.Client.Admin\KubaPC.Client.Admin.csproj" />
-    <ProjectReference Include="..\KubaPC.Client.Operator\KubaPC.Client.Operator.csproj" />
     <ProjectReference Include="..\KubaPC.Models\KubaPC.Models.csproj" />
     <ProjectReference Include="..\KubaPC.Services\KubaPC.Services.csproj" />
   </ItemGroup>

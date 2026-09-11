@@ -1,4 +1,4 @@
-# Claude Code — local, machine-specific overrides and working state
+# Local, machine-specific overrides and working state
 .claude/settings.local.json
 .claude/worktrees/
 .claude/cache/

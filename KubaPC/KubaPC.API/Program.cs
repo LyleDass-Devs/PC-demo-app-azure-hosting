@@ -16,11 +16,13 @@ namespace KubaPC.API
             builder.BuildAuthentication();
             builder.BuildAPIAuthorization();
             builder.BuildDatabaseLogging();
+            builder.BuildCors();
             builder.Services.AddFastEndpoints();
 
             WebApplication app = builder.Build();
 
             app.RunTimeEnvironment();
+            app.UseCors(StartupExtensions.CLIENT_CORS_POLICY);
             app.UseAuthentication();
             app.UseAuthorization();
             app.UseMiddleware<KubaPC.API.Middleware.PasswordChangeMiddleware>();

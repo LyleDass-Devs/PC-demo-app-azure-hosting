@@ -5,21 +5,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
-    <!--
-      The API hosts both Blazor WebAssembly clients from one site. Without a base
-      path each client publishes its runtime to _framework/ at the site root, and
-      the two sets of files collide on any assembly they share (build error
-      NET-SDK "Conflicting assets with the same target path"). Giving each client
-      its own base path moves the runtime to admin/_framework/ and keeps the two
-      apart. The value must match the branch this client is mapped to in
-      KubaPC.API/Startup.cs.
-    -->
-    <StaticWebAssetBasePath>admin</StaticWebAssetBasePath>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Autofac" Version="9.3.2" />
+    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="11.0.2" />
+    <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="MudBlazor" Version="9.9.0" />
   </ItemGroup>
 
   <ItemGroup>
