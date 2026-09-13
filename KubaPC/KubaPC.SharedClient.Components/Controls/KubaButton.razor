@@ -1,0 +1,34 @@
+@* Label and ring share one grid cell, so the button never changes width when it becomes busy. *@
+<button class="kbtn @VariantClass @(Block ? "kbtn--block" : "") @(Small ? "kbtn--sm" : "") @(Busy ? "is-busy" : "") @Class"
+        type="@Type" disabled="@(Disabled || Busy)" aria-busy="@Busy" @onclick="HandleClick">
+    <span class="kbtn__label">@Text</span>
+    <span class="kbtn__ring" aria-hidden="true"></span>
+    @if (!string.IsNullOrEmpty(Icon))
+    {
+        <span class="kbtn__island" aria-hidden="true"><MudIcon Icon="@Icon" /></span>
+    }
+</button>
+
+@code {
+    public enum KubaButtonVariant { Primary, Danger, Ghost }
+
+    [Parameter] public string Text { get; set; } = string.Empty;
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public KubaButtonVariant Variant { get; set; } = KubaButtonVariant.Primary;
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Block { get; set; }
+    [Parameter] public bool Small { get; set; }
+    [Parameter] public string Type { get; set; } = "button";
+    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private string VariantClass => Variant switch
+    {
+        KubaButtonVariant.Danger => "kbtn--danger",
+        KubaButtonVariant.Ghost => "kbtn--ghost",
+        _ => string.Empty
+    };
+
+    private Task HandleClick() => Busy ? Task.CompletedTask : OnClick.InvokeAsync();
+}

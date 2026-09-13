@@ -1,0 +1,24 @@
+<section class="tile tile--pad @(Hover ? "tile--hover" : "") @Class" data-reveal>
+    @if (!string.IsNullOrEmpty(EdgeColor))
+    {
+        <span class="tile__edge" style="--edge-color:@EdgeColor" aria-hidden="true"></span>
+    }
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <h2 class="tile__title">@Title</h2>
+    }
+    @if (!string.IsNullOrEmpty(Subtitle))
+    {
+        <p class="tile__sub">@Subtitle</p>
+    }
+    @ChildContent
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? EdgeColor { get; set; }
+    [Parameter] public bool Hover { get; set; }
+    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

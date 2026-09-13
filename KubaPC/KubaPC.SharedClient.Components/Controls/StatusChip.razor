@@ -1,0 +1,8 @@
+<span class="status status--@Kind.ToString().ToLowerInvariant()"><i aria-hidden="true"></i>@Text</span>
+
+@code {
+    public enum StatusKind { Ok, Pending, Draft, Off, Danger }
+
+    [Parameter] public StatusKind Kind { get; set; } = StatusKind.Ok;
+    [Parameter] public string Text { get; set; } = string.Empty;
+}

@@ -1,0 +1,11 @@
+<div class="tile tile--pad" aria-hidden="true">
+    @for (int i = 0; i < Rows; i++)
+    {
+        string width = i == 0 ? "45%" : i % 2 == 0 ? "70%" : "85%";
+        <div class="skeleton" style="height:14px;width:@width;margin-bottom:10px"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Rows { get; set; } = 3;
+}

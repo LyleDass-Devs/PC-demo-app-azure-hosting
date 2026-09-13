@@ -1,2 +1,55 @@
-@* Placeholder until plan task 6 builds the notification stack. *@
-<div class="notify" aria-live="polite"></div>
+@inject INotificationService Notifications
+@implements IDisposable
+
+<div class="notify" aria-live="polite">
+    @foreach (NotificationItem item in Notifications.Items)
+    {
+        <div class="notify__item" @key="item.Id" style="--edge-color:@EdgeColor(item.Level);--life:6s" role="@(item.Level == NotificationLevel.Error ? "alert" : "status")">
+            <div class="notify__row">
+                <div>
+                    <p class="notify__title">@item.Title</p>
+                    @if (!string.IsNullOrEmpty(item.Message))
+                    {
+                        <p class="notify__msg">@item.Message</p>
+                    }
+                    @if (item.Action is not null)
+                    {
+                        <button class="notify__action" type="button" @onclick="() => RunAction(item)">@item.Action.Label</button>
+                    }
+                </div>
+                <button class="notify__close" type="button" aria-label="Dismiss" @onclick="() => Notifications.Dismiss(item.Id)">
+                    <MudIcon Icon="@KubaIcons.Regular.X" Style="width:16px;height:16px" />
+                </button>
+            </div>
+            @if (item.AutoDismiss)
+            {
+                @* The bar's CSS animation is the timer: hover or focus pauses it, and its end dismisses the item. *@
+                <span class="notify__bar" aria-hidden="true" @onanimationend="() => Notifications.Dismiss(item.Id)"></span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Notifications.Changed += StateHasChanged;
+
+    private static string EdgeColor(NotificationLevel level) => level switch
+    {
+        NotificationLevel.Success => "var(--ok)",
+        NotificationLevel.Warning => "var(--warn)",
+        NotificationLevel.Error => "var(--danger)",
+        _ => "var(--info)"
+    };
+
+    private async Task RunAction(NotificationItem item)
+    {
+        Notifications.Dismiss(item.Id);
+
+        if (item.Action is not null)
+        {
+            await item.Action.Invoke();
+        }
+    }
+
+    public void Dispose() => Notifications.Changed -= StateHasChanged;
+}

@@ -1,0 +1,20 @@
+<div class="inline-confirm" role="alertdialog" aria-labelledby="@id">
+    <p id="@id">@Message</p>
+    <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" Small="true" OnClick="OnCancel" Disabled="Busy" />
+    <KubaButton Text="@ConfirmText" Variant="KubaButton.KubaButtonVariant.Danger" Icon="@KubaIcons.Regular.Check" Small="true" Busy="Busy" OnClick="OnConfirm" />
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="form-error" role="alert">@Error</div>
+    }
+</div>
+
+@code {
+    private readonly string id = "confirm-" + Guid.NewGuid().ToString("N")[..8];
+
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public string ConfirmText { get; set; } = "Confirm";
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+}

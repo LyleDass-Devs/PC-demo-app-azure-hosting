@@ -1,0 +1,11 @@
+<div class="tile empty" role="alert">
+    <MudIcon Icon="@KubaIcons.Light.WarningCircle" Style="width:36px;height:36px;color:var(--danger)" />
+    <b>Could not load</b>
+    <span>@Message</span>
+    <KubaButton Text="Try again" Icon="@KubaIcons.Regular.ArrowRight" Variant="KubaButton.KubaButtonVariant.Ghost" Small="true" OnClick="OnRetry" />
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "The server could not be reached.";
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

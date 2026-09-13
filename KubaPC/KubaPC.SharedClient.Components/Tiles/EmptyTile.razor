@@ -1,0 +1,16 @@
+<div class="tile empty">
+    <MudIcon Icon="@Icon" Style="width:36px;height:36px" />
+    <b>@Title</b>
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <span>@Message</span>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string Icon { get; set; } = KubaIcons.Light.ClipboardText;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
