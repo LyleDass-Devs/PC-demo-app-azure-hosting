@@ -1,25 +1,29 @@
-﻿@using Microsoft.AspNetCore.Components.Authorization
-<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
-
+<MudThemeProvider Theme="KubaTheme.Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
 <CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-
+    <Router AppAssembly="@typeof(App).Assembly"
+            AdditionalAssemblies="new[] { typeof(KubaMark).Assembly }"
+            NotFoundPage="typeof(KubaPC.SharedClient.Components.Pages.NotFound)">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                     <RedirectToLogin />
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        <KubaPC.SharedClient.Components.Pages.Forbidden />
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
                 </NotAuthorized>
                 <Authorizing>
-                    <p>Checking your sign-in...</p>
+                    <p class="visually-hidden">Checking your sign-in</p>
                 </Authorizing>
             </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1"/>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
         </Found>
     </Router>
 </CascadingAuthenticationState>

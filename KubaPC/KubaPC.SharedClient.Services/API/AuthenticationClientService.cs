@@ -35,9 +35,7 @@ namespace KubaPC.SharedClient.Services.Api
             await Provider.MarkUserAsSignedOut();
         }
 
-        // Registered against the framework's base type, so the concrete type is
-        // recovered here rather than registering the same instance twice.
-        private KubaPcAuthenticationStateProvider Provider =>
-            (KubaPcAuthenticationStateProvider)authenticationStateProvider;
+   
+        private KubaPcAuthenticationStateProvider Provider => (KubaPcAuthenticationStateProvider)authenticationStateProvider;
     }
 }

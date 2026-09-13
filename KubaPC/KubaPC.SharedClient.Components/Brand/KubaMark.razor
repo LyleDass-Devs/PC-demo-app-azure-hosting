@@ -1,0 +1,16 @@
+@* The Kuba mark: a left semicircle and a kite, traced from the client's logo.
+   Outline is the variant that draws itself; pathLength=1 lets CSS or GSAP animate
+   stroke-dashoffset from 1 to 0 regardless of the real path length. *@
+<svg class="@($"kuba-mark {(Outline ? "kuba-mark--outline" : "")} {Class}")"
+     viewBox="72 68 64 64" width="@Size" height="@Size" aria-hidden="true" @ref="Element">
+    <path pathLength="1" d="M103 70.5 A28.5 28.5 0 0 0 103 127.5 Z" />
+    <path pathLength="1" d="M124 80 L107 100 L124 118 L132 100 Z" />
+</svg>
+
+@code {
+    [Parameter] public int Size { get; set; } = 32;
+    [Parameter] public bool Outline { get; set; }
+    [Parameter] public string Class { get; set; } = string.Empty;
+
+    public ElementReference Element { get; private set; }
+}
