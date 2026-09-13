@@ -1,0 +1,17 @@
+@using KubaPC.SharedClient.Components.Navigation
+
+@* A real link styled as a tile: middle-click opens a tab, the keyboard reaches it,
+   and assistive technology announces it as navigation. *@
+<a class="tile tile--pad tile--hover task" href="@Task.Href" data-reveal>
+    <span class="tile__edge" style="--edge-color:@Task.EdgeColor" aria-hidden="true"></span>
+    <span class="task__icon" aria-hidden="true"><MudIcon Icon="@Task.Icon" /></span>
+    <span class="task__body">
+        <h2 class="tile__title">@Task.Title</h2>
+        <p class="tile__sub">@Task.Description</p>
+    </span>
+    <span class="task__go" aria-hidden="true"><MudIcon Icon="@KubaIcons.Regular.ArrowRight" /></span>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public HomeTask Task { get; set; } = default!;
+}

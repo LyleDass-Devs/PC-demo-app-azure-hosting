@@ -1,0 +1,34 @@
+@page "/soon/{Module}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject PageHeader Header
+@inject NavigationManager Navigation
+@inject AppInfo App
+
+<PageTitle>@Title · @App.Title</PageTitle>
+
+<div style="max-width:520px">
+    <EmptyTile Title="@Title" Message="@Message" Icon="@KubaIcons.Light.ClipboardText">
+        <KubaButton Text="Back to home" Icon="@KubaIcons.Regular.ArrowRight" Small="true"
+                    Variant="KubaButton.KubaButtonVariant.Ghost"
+                    OnClick="@(() => Navigation.NavigateTo(ClientRoutes.HOME))" />
+    </EmptyTile>
+</div>
+
+@code {
+    [Parameter] public string Module { get; set; } = string.Empty;
+
+    private string Title => Module switch
+    {
+        "certificates" => "Payment certificates",
+        "penalties" => "Penalties",
+        "forms" => "Forms",
+        "vehicles" => "Vehicles",
+        "shifts" => "Shifts",
+        "catalogue" => "Catalogue and rates",
+        _ => "Coming soon"
+    };
+
+    private string Message => $"{Title} arrive with the next module. Nothing to do here yet.";
+
+    protected override void OnInitialized() => Header.Set(Title);
+}

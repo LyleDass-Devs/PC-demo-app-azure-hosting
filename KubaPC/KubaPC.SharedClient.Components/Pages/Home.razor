@@ -1,0 +1,43 @@
+@page "/"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using KubaPC.SharedClient.Components.Navigation
+@inject ICurrentUserService CurrentUser
+@inject PageHeader Header
+@inject IMotionService Motion
+@inject AppInfo App
+
+<PageTitle>Home · @App.Title</PageTitle>
+
+<p class="home-intro">@Greeting, <b>@(user?.FullName)</b>. What do you want to do?</p>
+
+<div class="home-grid" @ref="board">
+    @foreach (HomeTask task in visible)
+    {
+        <TaskTile Task="task" />
+    }
+</div>
+
+@code {
+    private ElementReference board;
+    private CurrentUserResponse? user;
+    private List<HomeTask> visible = new();
+
+    private static string Greeting => DateTime.Now.Hour switch
+    {
+        < 12 => "Good morning",
+        < 17 => "Good afternoon",
+        _ => "Good evening"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Home");
+        user = await CurrentUser.Get();
+        visible = HomeTasks.All.Where(t => t.IsVisibleTo(user?.Roles ?? new List<string>())).ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await Motion.Animate(board, "board-reveal");
+    }
+}

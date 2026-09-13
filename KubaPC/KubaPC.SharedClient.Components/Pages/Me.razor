@@ -1,0 +1,41 @@
+@page "/me"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject ICurrentUserService CurrentUser
+@inject IAuthenticationClientService Authentication
+@inject NavigationManager Navigation
+@inject PageHeader Header
+@inject AppInfo App
+
+<PageTitle>Me · @App.Title</PageTitle>
+
+<div style="max-width:440px">
+    <BoardTile Title="@(user?.FullName ?? string.Empty)" Subtitle="@(user?.EmailAddress)">
+        <div class="chips" style="margin:10px 0 18px">
+            @if (user is not null)
+            {
+                foreach (string role in user.Roles) { <span class="chip">@role</span> }
+            }
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <KubaButton Text="Change password" Icon="@KubaIcons.Regular.Key" Variant="KubaButton.KubaButtonVariant.Ghost" Block="true"
+                        OnClick="@(() => Navigation.NavigateTo(ClientRoutes.CHANGE_PASSWORD_VOLUNTARY))" />
+            <KubaButton Text="Sign out" Icon="@KubaIcons.Regular.SignOut" Variant="KubaButton.KubaButtonVariant.Ghost" Block="true" OnClick="SignOut" />
+        </div>
+    </BoardTile>
+</div>
+
+@code {
+    private CurrentUserResponse? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Me");
+        user = await CurrentUser.Get();
+    }
+
+    private async Task SignOut()
+    {
+        await Authentication.SignOut();
+        Navigation.NavigateTo(ClientRoutes.LOGIN);
+    }
+}

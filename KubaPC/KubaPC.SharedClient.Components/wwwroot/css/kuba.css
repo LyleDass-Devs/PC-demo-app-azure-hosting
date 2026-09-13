@@ -83,6 +83,7 @@ body{margin:0;min-height:100vh;min-height:100dvh}
 
 .topbar{height:var(--topbar-h);display:flex;align-items:center;gap:16px;padding:0 28px;position:sticky;top:0;z-index:var(--z-sticky);background:color-mix(in srgb,var(--board) 92%,transparent);backdrop-filter:blur(8px)}
 .topbar__title{font:600 22px/1.2 var(--font);letter-spacing:-.01em;margin:0}
+.topbar__title:focus,.topbar__title:focus-visible{outline:none}
 .topbar__spacer{flex:1}
 .avatar{width:36px;height:36px;border-radius:50%;background:var(--kuba-indigo);color:var(--kuba-yellow);display:grid;place-items:center;font:600 12px var(--font);border:0;cursor:pointer}
 @media (max-width:599px){.topbar{padding:0 16px;height:56px}.topbar__title{font-size:18px}}
@@ -234,3 +235,13 @@ body{margin:0;min-height:100vh;min-height:100dvh}
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   .kuba-splash-mark path{stroke-dashoffset:0}
 }
+
+/* ---------- home launcher ---------- */
+.task{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;text-decoration:none;color:inherit;min-height:112px}
+.task__icon{width:44px;height:44px;border-radius:12px;background:var(--kuba-indigo);color:var(--kuba-yellow);display:grid;place-items:center}
+.task__icon svg{width:22px;height:22px}
+.task__go{width:32px;height:32px;border-radius:50%;background:var(--board);color:var(--ink-2);display:grid;place-items:center;transition:transform var(--dur-state) var(--ease-state),background var(--dur-state)}
+.task__go svg{width:16px;height:16px}
+.task:hover .task__go{background:var(--kuba-yellow);color:var(--kuba-indigo);transform:translateX(2px)}
+.home-intro{margin:0 0 20px;color:var(--ink-2);font-size:14px}
+.home-intro b{color:var(--ink);font-weight:600}
