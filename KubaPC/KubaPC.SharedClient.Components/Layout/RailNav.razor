@@ -1,0 +1,85 @@
+﻿@inject NavigationManager Navigation
+@inject ICurrentUserService CurrentUser
+@implements IDisposable
+
+<nav class="rail on-indigo @(Collapsed ? "rail--mini" : "")" aria-label="Main navigation">
+    <div class="rail__brand">
+        <KubaMark Size="26" />
+        <span class="rail__word">KUBA</span>
+    </div>
+
+    <div class="rail__items" style="--active-index:@activeIndex">
+        <span class="rail__marker" aria-hidden="true"></span>
+        @foreach (NavDestination destination in visible)
+        {
+            <NavLink class="rail__item" href="@destination.Href" Match="@(destination.Exact ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                <MudIcon Icon="@destination.Icon" Class="rail__icon" />
+                <span class="rail__label">@destination.Label</span>
+            </NavLink>
+        }
+    </div>
+
+    <button class="rail__toggle" type="button" @onclick="Toggle" aria-label="@(Collapsed ? "Expand navigation" : "Collapse navigation")">
+        <MudIcon Icon="@KubaIcons.Regular.SidebarSimple" Class="rail__icon" />
+        <span>@(Collapsed ? "Expand" : "Collapse")</span>
+    </button>
+
+    <div class="rail__user">
+        <b>@(user?.FullName ?? "")</b>
+        @if (user is not null)
+        {
+            <div class="chips">
+                @foreach (string role in user.Roles)
+                {
+                    <span class="chip">@role</span>
+                }
+            </div>
+        }
+    </div>
+</nav>
+
+
+@code {
+    [Parameter] public IReadOnlyList<NavDestination> Destinations { get; set; } = Array.Empty<NavDestination>();
+    [Parameter] public bool Collapsed { get; set; }
+    [Parameter] public EventCallback<bool> CollapsedChanged { get; set; }
+
+    private List<NavDestination> visible = new();
+    private int activeIndex;
+    private CurrentUserResponse? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        user = await CurrentUser.Get();
+        visible = Destinations.Where(d => d.IsVisibleTo(user?.Roles ?? new List<string>())).ToList();
+        UpdateActiveIndex();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateActiveIndex();
+        StateHasChanged();
+    }
+
+    private void UpdateActiveIndex()
+    {
+        string path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+
+        for (int i = 0; i < visible.Count; i++)
+        {
+            NavDestination d = visible[i];
+            bool matches = d.Exact
+                ? path == d.Href.TrimEnd('/') || (d.Href == "/" && path == "/")
+                : path.StartsWith(d.Href.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+
+            if (matches) { activeIndex = i; return; }
+        }
+
+        activeIndex = 0;
+    }
+
+    private Task Toggle() => CollapsedChanged.InvokeAsync(!Collapsed);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

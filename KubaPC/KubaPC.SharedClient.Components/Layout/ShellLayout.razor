@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+@inject IRailStore RailStore
+
+<div class="shell @(collapsed ? "shell--mini" : "")">
+    <RailNav Destinations="KubaDestinations.All" Collapsed="collapsed" CollapsedChanged="OnCollapsedChanged" />
+    <div class="shell__main">
+        <ProgressLine />
+        <TopBar />
+        <main class="shell__body">
+            <RouteArrival>@Body</RouteArrival>
+        </main>
+    </div>
+</div>
+<BottomTabBar Destinations="KubaDestinations.All" />
+<NotificationHost />
+
+@code {
+    private bool collapsed;
+
+    protected override async Task OnInitializedAsync() => collapsed = await RailStore.GetCollapsed();
+
+    private async Task OnCollapsedChanged(bool value)
+    {
+        collapsed = value;
+        await RailStore.SetCollapsed(value);
+    }
+}

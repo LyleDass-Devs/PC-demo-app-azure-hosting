@@ -30,6 +30,7 @@ builder.Services.AddScoped(serviceProvider => new HttpClient { BaseAddress = new
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddMudServices();
+builder.Services.AddScoped<KubaPC.SharedClient.Components.Layout.PageHeader>();
 
 // The two strings that differ between the apps on shared pages.
 builder.Services.AddSingleton(new AppInfo("KubaPC", "Payment Certificate"));

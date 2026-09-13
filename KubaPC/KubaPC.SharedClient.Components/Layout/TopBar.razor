@@ -1,0 +1,14 @@
+﻿@inject PageHeader Header
+@implements IDisposable
+
+<header class="topbar">
+    <h1 class="topbar__title">@Header.Title</h1>
+    <span class="topbar__spacer"></span>
+    <ProfileMenu />
+</header>
+
+@code {
+    protected override void OnInitialized() => Header.Changed += StateHasChanged;
+
+    public void Dispose() => Header.Changed -= StateHasChanged;
+}

@@ -1,0 +1,48 @@
+﻿@inject ICurrentUserService CurrentUser
+@inject IAuthenticationClientService Authentication
+@inject NavigationManager Navigation
+
+<MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
+    <ActivatorContent>
+        <button class="avatar" type="button" aria-label="Account menu">@initials</button>
+    </ActivatorContent>
+    <ChildContent>
+        <div style="padding:10px 16px 6px;min-width:220px">
+            <div style="font-weight:600">@(user?.FullName)</div>
+            <div style="font-size:12px;color:var(--ink-2)">@(user?.EmailAddress)</div>
+            <div class="chips" style="margin-top:8px">
+                @if (user is not null)
+                {
+                    foreach (string role in user.Roles)
+                    {
+                        <span class="chip">@role</span>
+                    }
+                }
+            </div>
+        </div>
+        <MudDivider />
+        <MudMenuItem Href="@ClientRoutes.CHANGE_PASSWORD_VOLUNTARY" Icon="@KubaIcons.Regular.Key">Change password</MudMenuItem>
+        <MudMenuItem OnClick="SignOut" Icon="@KubaIcons.Regular.SignOut">Sign out</MudMenuItem>
+    </ChildContent>
+</MudMenu>
+
+@code {
+    private CurrentUserResponse? user;
+    private string initials = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await CurrentUser.Get();
+
+        initials = string.Concat((user?.FullName ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+    }
+
+    private async Task SignOut()
+    {
+        await Authentication.SignOut();
+        Navigation.NavigateTo(ClientRoutes.LOGIN);
+    }
+}

@@ -1,0 +1,16 @@
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@* @key on the wrapper makes Blazor recreate the element on every route change,
+   which is what replays the CSS entry animation. *@
+<div class="route-arrival" @key="Navigation.Uri">@ChildContent</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnChanged;
+
+    private void OnChanged(object? sender, LocationChangedEventArgs e) => StateHasChanged();
+
+    public void Dispose() => Navigation.LocationChanged -= OnChanged;
+}

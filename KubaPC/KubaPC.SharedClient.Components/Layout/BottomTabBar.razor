@@ -1,0 +1,54 @@
+﻿@inject NavigationManager Navigation
+@inject ICurrentUserService CurrentUser
+@implements IDisposable
+
+<nav class="tabbar on-indigo" aria-label="Main navigation" style="--tab-count:@visible.Count;--active-index:@activeIndex">
+    <span class="tabbar__marker" aria-hidden="true"></span>
+    @foreach (NavDestination destination in visible)
+    {
+        <NavLink class="tabbar__item" href="@destination.Href" Match="@(destination.Exact ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+            <MudIcon Icon="@destination.Icon" />
+            <span>@destination.Label</span>
+        </NavLink>
+    }
+</nav>
+
+@code {
+    [Parameter] public IReadOnlyList<NavDestination> Destinations { get; set; } = Array.Empty<NavDestination>();
+
+    private List<NavDestination> visible = new();
+    private int activeIndex;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        CurrentUserResponse? user = await CurrentUser.Get();
+        visible = Destinations.Where(d => d.IsVisibleTo(user?.Roles ?? new List<string>())).ToList();
+        UpdateActiveIndex();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateActiveIndex();
+        StateHasChanged();
+    }
+
+    private void UpdateActiveIndex()
+    {
+        string path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+
+        for (int i = 0; i < visible.Count; i++)
+        {
+            NavDestination d = visible[i];
+            bool matches = d.Exact
+                ? path == d.Href.TrimEnd('/') || (d.Href == "/" && path == "/")
+                : path.StartsWith(d.Href.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+
+            if (matches) { activeIndex = i; return; }
+        }
+
+        activeIndex = 0;
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

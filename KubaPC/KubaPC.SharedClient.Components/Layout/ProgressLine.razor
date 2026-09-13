@@ -1,0 +1,50 @@
+﻿@inject IRequestActivity Activity
+@implements IDisposable
+
+<div class="progress-line @(visible ? "is-active" : "")" role="progressbar" aria-hidden="@(!visible)"></div>
+
+@code {
+    private const int SHOW_AFTER_MS = 300;
+    private const int MINIMUM_VISIBLE_MS = 400;
+
+    private bool visible;
+    private DateTime shownAt;
+    private System.Threading.Timer? timer;
+
+    protected override void OnInitialized() => Activity.Changed += OnActivity;
+
+    private void OnActivity()
+    {
+        timer?.Dispose();
+
+        if (Activity.IsBusy)
+        {
+            timer = new System.Threading.Timer(_ => InvokeAsync(Show), null, SHOW_AFTER_MS, Timeout.Infinite);
+            return;
+        }
+
+        int remaining = Math.Max(0, MINIMUM_VISIBLE_MS - (int)(DateTime.UtcNow - shownAt).TotalMilliseconds);
+        timer = new System.Threading.Timer(_ => InvokeAsync(Hide), null, remaining, Timeout.Infinite);
+    }
+
+    private void Show()
+    {
+        if (!Activity.IsBusy) return;
+        visible = true;
+        shownAt = DateTime.UtcNow;
+        StateHasChanged();
+    }
+
+    private void Hide()
+    {
+        if (Activity.IsBusy) return;
+        visible = false;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Activity.Changed -= OnActivity;
+        timer?.Dispose();
+    }
+}
