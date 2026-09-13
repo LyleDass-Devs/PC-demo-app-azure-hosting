@@ -20,6 +20,7 @@ namespace KubaPC.API.Endpoints.Accounts
                 Id = Guid.TryParse(User.FindFirst("UserId")?.Value, out Guid id) ? id : Guid.Empty,
                 FullName = User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty,
                 EmailAddress = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty,
+                MustChangePassword = User.HasClaim("PasswordChangeRequired", "true"),
                 Roles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList()
             };
 

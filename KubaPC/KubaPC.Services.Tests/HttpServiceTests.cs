@@ -31,7 +31,7 @@ namespace KubaPC.Services.Tests
             TestTokenStore tokenStore = new(storedToken);
             TestNavigationManager navigation = new();
 
-            return new Harness(new HttpService(httpClient, tokenStore, navigation), tokenStore, navigation, handler);
+            return new Harness(new HttpService(httpClient, tokenStore, navigation, new RequestActivity()), tokenStore, navigation, handler);
         }
 
         private sealed class Person

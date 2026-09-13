@@ -20,12 +20,14 @@ namespace KubaPC.SharedClient.Services.Http
         private readonly HttpClient httpClient;
         private readonly ITokenStore tokenStore;
         private readonly NavigationManager navigationManager;
+        private readonly IRequestActivity requestActivity;
 
-        public HttpService(HttpClient httpClient, ITokenStore tokenStore, NavigationManager navigationManager)
+        public HttpService(HttpClient httpClient, ITokenStore tokenStore, NavigationManager navigationManager, IRequestActivity requestActivity)
         {
             this.httpClient = httpClient;
             this.tokenStore = tokenStore;
             this.navigationManager = navigationManager;
+            this.requestActivity = requestActivity ;
         }
 
         public async Task<ApiResult<T>> Get<T>(string uri)
@@ -68,27 +70,30 @@ namespace KubaPC.SharedClient.Services.Http
 
             HttpResponseMessage response;
 
-            try
-            {
-                response = await httpClient.SendAsync(request);
-            }
-            catch (Exception)
-            {
-                // No response at all: the API is down, the address is wrong, or the
-                // browser blocked the call. Status 0 says "ne
-                return new Outcome(false, 0, null, null, "The server could not be reached. Check your connection and try again.", EMPTY_ERRORS);
-            }
-
-            using (response)
-            {
-                string content = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
+            using (requestActivity.Begin()) 
+            { 
+                try
                 {
-                    return new Outcome(true, (int)response.StatusCode, content, null, null, EMPTY_ERRORS);
+                    response = await httpClient.SendAsync(request);
+                }
+                catch (Exception)
+                {
+                    // No response at all: the API is down, the address is wrong, or the
+                    // browser blocked the call. Status 0 says "ne
+                    return new Outcome(false, 0, null, null, "The server could not be reached. Check your connection and try again.", EMPTY_ERRORS);
                 }
 
-                return await HandleFailure(response.StatusCode, content, isTokenAttached);
+                using (response)
+                {
+                    string content = await response.Content.ReadAsStringAsync();
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        return new Outcome(true, (int)response.StatusCode, content, null, null, EMPTY_ERRORS);
+                    }
+
+                    return await HandleFailure(response.StatusCode, content, isTokenAttached);
+                }
             }
         }
 

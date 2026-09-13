@@ -12,7 +12,8 @@ namespace KubaPC.SharedClient.Services.Factories
             builder.RegisterAssemblyTypes(Assembly.GetExecutingAssembly())
                 .Where(type => type.Name.EndsWith("Service")
                             || type.Name.EndsWith("Store")
-                            || type.Name.EndsWith("Helper"))
+                            || type.Name.EndsWith("Helper")
+                            || type.Name.EndsWith("Activity"))
                 .AsImplementedInterfaces()
                 .InstancePerLifetimeScope();
         }
