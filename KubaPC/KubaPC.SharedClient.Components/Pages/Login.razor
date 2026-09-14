@@ -10,7 +10,7 @@
 <div class="entry on-indigo">
     <div class="entry__lock">
         <KubaMark @ref="mark" Size="56" Outline="true" />
-        <img class="entry__word" src ="_content/KubaPC.SharedClient.Components/img/kuba-wordmark-white.png" alt="Kuba"
+        <KubaWordmark Height="26" Class="entry__word" />
     </div>
 
     <div class="entry__tile" @ref="tile">
@@ -32,6 +32,7 @@
             <PasswordField @bind-Value="request.Password" />
             <KubaButton Type="submit" Text="Sign in" Icon="@KubaIcons.Regular.ArrowRight" Busy="busy" Block="true" />
         </form>
+        <a class="entry__link" href="@ClientRoutes.FORGOT_PASSWORD">Forgot your password?</a>
     </div>
     <div class="entry__foot">Kuba Payment Certificate</div>
 </div>
@@ -46,6 +47,9 @@
     private KubaMark? mark;
     private ElementReference tile;
 
+    // A stale token from an earlier session must not ride along on the sign-in request.
+    protected override Task OnInitializedAsync() => Authentication.SignOut();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -58,11 +62,15 @@
     private async Task Submit()
     {
         error = null;
+
+        if (string.IsNullOrWhiteSpace(request.EmailAddress) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            error = "Enter your email address and password.";
+            return;
+        }
+
         busy = true;
-
         var result = await Authentication.Login(request);
-
-
         busy = false;
 
         if (!result.IsSuccess || result.Data is null)
@@ -75,7 +83,8 @@
 
         if (result.Data.MustChangePassword)
         {
-            Navigation.NavigateTo($"{ClientRoutes.CHANGE_PASSWORD}?returnUrl={Uri.EscapeDataString(target)}");   
+            Navigation.NavigateTo($"{ClientRoutes.CHANGE_PASSWORD}?returnUrl={Uri.EscapeDataString(target)}");
+            return;
         }
 
         Navigation.NavigateTo(target);

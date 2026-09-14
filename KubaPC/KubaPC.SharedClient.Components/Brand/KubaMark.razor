@@ -1,10 +1,10 @@
-﻿@* The Kuba mark: a left semicircle and a kite, traced from the client's logo.
-   Outline is the variant that draws itself; pathLength=1 lets CSS or GSAP animate
-   stroke-dashoffset from 1 to 0 regardless of the real path length. *@
+﻿@* The Kuba mark: a disc split into a left half and a right-hand kite. Both shapes are
+   cut from the same circle, so they always line up at any size. pathLength=1 lets CSS or
+   GSAP animate stroke-dashoffset from 1 to 0 regardless of the real path length. *@
 <svg class="@($"kuba-mark {(Outline ? "kuba-mark--outline" : "")} {Class}")"
-     viewBox="72 68 64 64" width="@Size" height="@Size" aria-hidden="true" @ref="Element">
-    <path pathLength="1" d="M103 70.5 A28.5 28.5 0 0 0 103 127.5 Z" />
-    <path pathLength="1" d="M124 80 L107 100 L124 118 L132 100 Z" />
+     viewBox="0 0 100 100" width="@Size" height="@Size" aria-hidden="true" @ref="Element">
+    <path pathLength="1" d="M50 2 A48 48 0 0 0 50 98 Z" />
+    <path pathLength="1" d="M54.2 50 L85.98 18.22 A48 48 0 0 1 85.98 81.78 Z" />
 </svg>
 
 @code {

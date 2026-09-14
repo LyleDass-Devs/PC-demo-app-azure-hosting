@@ -1,0 +1,13 @@
+﻿@* The KUBA wordmark as geometry, so it stays sharp at every size and takes its colour
+   from the surrounding text colour. Letter positions match the original logo. *@
+<svg class="@($"kuba-wordmark {Class}")" viewBox="0 0 1387 330" height="@Height" role="img" aria-label="Kuba" fill="currentColor" fill-rule="evenodd">
+    <path d="M0 0 H73 V150 L192 0 H280 L150 168 L284 330 H192 L73 187 V330 H0 Z" />
+    <path transform="translate(360 0)" d="M0 0 H73 V220 A60 60 0 0 0 193 220 V0 H266 V197 A133 133 0 0 1 0 197 Z" />
+    <path transform="translate(743 0)" d="M0 0 H165 A75 75 0 0 1 240 75 V90 A75 75 0 0 1 165 165 H175 A80 80 0 0 1 255 245 V250 A80 80 0 0 1 175 330 H0 Z M71 60 H122 A40 40 0 0 1 122 140 H71 Z M71 190 H140 A40 40 0 0 1 140 270 H71 Z" />
+    <path transform="translate(1068 0)" d="M141.5 0 H177.5 L319 330 H244 L159.5 92 L75 330 H0 Z" />
+</svg>
+
+@code {
+    [Parameter] public int Height { get; set; } = 16;
+    [Parameter] public string Class { get; set; } = string.Empty;
+}
