@@ -1,0 +1,143 @@
+﻿@inject IAccountClientService AccountClient
+@inject IRoleClientService Roles
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(480px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <h2>@(isEdit ? "Edit account" : "New account")</h2>
+        <p class="lede">@(isEdit ? editingEmail : "The person receives this password from you and must replace it at first sign-in.")</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            <div class="field">
+                <label for="full-name">Full name</label>
+                <input id="full-name" class="kinput @(FieldError("fullName") is not null ? "invalid" : "")" @bind="fullName" autocomplete="name" required />
+                @if (FieldError("fullName") is string fe)
+                {
+                    <span class="field__error">@fe</span>
+                }
+            </div>
+
+            @if (!isEdit)
+            {
+                <div class="field">
+                    <label for="email-address">Email address</label>
+                    <input id="email-address" class="kinput @(FieldError("emailAddress") is not null ? "invalid" : "")" type="email" @bind="email" autocomplete="off" inputmode="email" required />
+                    @if (FieldError("emailAddress") is string ee)
+                    {
+                        <span class="field__error">@ee</span>
+                    }
+                </div>
+                <PasswordField @bind-Value="password" Label="Temporary password" Id="temp-password" AutoComplete="new-password" Error="@FieldError("password")" />
+                <PasswordStrengthLine Value="@password" />
+                <div style="height:14px"></div>
+            }
+
+            <div class="field">
+                <label>Roles</label>
+                @if (isSelf)
+                {
+                    <span class="field__hint">You cannot change the roles on your own account.</span>
+                }
+                <div class="chips" style="gap:8px;margin-top:4px">
+                    @foreach (DropDownResponse role in roles)
+                    {
+                        bool on = selectedRoles.Contains(role.Value);
+                        <button type="button" class="chip chip--toggle @(on ? "chip--on" : "")" aria-pressed="@(on ? "true" : "false")" disabled="@isSelf" @onclick="() => ToggleRole(role.Value)">@role.Value</button>
+                    }
+                </div>
+                @if (FieldError("roleNames") is string re)
+                {
+                    <span class="field__error">@re</span>
+                }
+            </div>
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Create account")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool open, isEdit, isSelf, busy;
+    private Guid editingId;
+    private string editingEmail = string.Empty, fullName = string.Empty, email = string.Empty, password = string.Empty;
+    private readonly HashSet<string> selectedRoles = new();
+    private List<DropDownResponse> roles = new();
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    public async void OpenCreate() 
+    {
+        Reset(); 
+        isEdit = false;
+        await EnsureRoles(); 
+        open = true;
+        StateHasChanged(); 
+    }
+
+    public async void OpenEdit(AccountListResponse account, bool self)
+    {
+        Reset(); isEdit = true; isSelf = self;
+        editingId = account.Id; editingEmail = account.EmailAddress; fullName = account.FullName;
+        foreach (string role in (account.RoleNames ?? "").Split(", ", StringSplitOptions.RemoveEmptyEntries)) selectedRoles.Add(role);
+        await EnsureRoles(); open = true; StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        fullName = email = password = string.Empty;
+        selectedRoles.Clear(); isSelf = false; 
+        busy = false; 
+    }
+
+    private async Task EnsureRoles()
+    {
+        if (roles.Count > 0) return;
+        var result = await Roles.GetAll();
+        roles = result.Data ?? new List<DropDownResponse>();
+        if (!result.IsSuccess) Notifications.Notify(NotificationLevel.Error, "Could not load roles", result.ErrorMessage);
+    }
+
+    private void ToggleRole(string role) 
+    {
+        if (!selectedRoles.Remove(role))
+            selectedRoles.Add(role);
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        var result = isEdit
+            ? await AccountClient.Update(new UpdateAccountRequest { Id = editingId, FullName = fullName, RoleNames = selectedRoles.ToList() })
+            : (await AccountClient.Create(new CreateAccountRequest { FullName = fullName, EmailAddress = email, Password = password, RoleNames = selectedRoles.ToList() })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            // 400: bind per field. 409: keep every value, say why at the top, move focus there. Anything else: same line.
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Account updated" : "Account created", isEdit ? fullName : $"{fullName} can sign in with the temporary password.");
+        await OnSaved.InvokeAsync();
+    }
+}

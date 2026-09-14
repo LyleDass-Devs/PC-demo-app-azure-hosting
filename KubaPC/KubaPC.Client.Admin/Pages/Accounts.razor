@@ -1,0 +1,197 @@
+﻿@page "/accounts"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
+@inject IAccountClientService AccountClient
+@inject ICurrentUserService CurrentUser
+@inject INotificationService Notifications
+@inject PageHeader Header
+
+<PageTitle>Accounts · KubaPC</PageTitle>
+
+<BoardTile Class="tile--flush"> 
+    <div class="toolbar">
+        <div class="search">
+            <MudIcon Icon="@KubaIcons.Regular.MagnifyingGlass" />
+            <input class="kinput" type="search" placeholder="Search by name or email" aria-label="Search accounts" value="@search" @oninput="OnSearchInput" />
+        </div>
+        <div class="seg" role="group" aria-label="Show">
+            <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
+            <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Inactive</button>
+        </div>
+        <span class="toolbar__count">@countLabel</span>
+        <KubaButton Text="New account" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
+    </div>
+
+    @if (!isActive)
+    {
+        <p class="readonly-note">Inactive accounts are shown for reference and cannot be changed here.</p>
+    }
+
+    @if (confirmTarget is not null)
+    {
+        <div style="padding:12px 16px 0">
+            <InlineConfirm Message="@($"Deactivate {confirmTarget.FullName}? They will no longer be able to sign in, and this cannot be undone here.")"
+                           ConfirmText="Deactivate" Busy="confirmBusy" Error="@confirmError" OnConfirm="Deactivate" OnCancel="() => confirmTarget = null" />
+        </div>
+    }
+
+    <MudHidden Breakpoint="Breakpoint.SmAndDown">
+        <MudDataGrid @ref="grid" T="AccountListResponse" ServerData="LoadServerData" SortMode="SortMode.Single" Dense="true"
+                     RowsPerPage="25" Hover="true" FixedHeader="true" Height="calc(100vh - 260px)" Loading="loading" LoadingProgressColor="Color.Primary"
+                     RowClassFunc="@RowClass">
+            <Columns>
+                <TemplateColumn Title="Name" SortBy="@(x => x.FullName)" Sortable="true">
+                    <CellTemplate><div class="name">@context.Item.FullName</div><div class="email">@context.Item.EmailAddress</div></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Roles" Sortable="false">
+                    <CellTemplate><div class="chips">@foreach (string role in Roles(context.Item)) { <span class="chip">@role</span> }</div></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Status" Sortable="false">
+                    <CellTemplate><StatusChip Kind="@StatusOf(context.Item)" Text="@StatusText(context.Item)" /></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Last sign-in" SortBy="@(x => x.LastLoginAt)" Sortable="true">
+                    <CellTemplate><span title="@context.Item.LastLoginAt?.ToLocalTime().ToString("f")">@RelativeTime.Describe(context.Item.LastLoginAt)</span></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Sortable="false" CellStyle="width:56px">
+                        <CellTemplate>
+                            <button class="iconbtn" type="button" aria-label="@($"Actions for {context.Item.FullName}")" @onclick="e => OpenRowMenu(e, context.Item)">
+                                <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                            </button>
+                        </CellTemplate>
+                    </TemplateColumn>
+             </Columns>
+             <NoRecordsContent>
+                    <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No accounts yet" : $"Nothing matches \"{search}\"")" Message="@(string.IsNullOrWhiteSpace(search) ? "Create the first account with New account." : null)">
+                        @if (!string.IsNullOrWhiteSpace(search))
+                        {
+                            <KubaButton Text="Clear search" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="ClearSearch" />
+                        }
+                    </EmptyTile>
+             </NoRecordsContent>
+            <PagerContent><MudDataGridPager T="AccountListResponse" PageSizeOptions="new[] { 25, 50, 100 }" /></PagerContent>
+         </MudDataGrid>
+     </MudHidden>
+
+     <MudHidden Breakpoint="Breakpoint.MdAndUp">
+        <AccountTileList @ref="tileList" Search="@search" IsActive="isActive" CurrentUserId="currentUserId" OnEdit="OnEdit" OnDeactivate="OnAskDeactivate" />
+    </MudHidden>
+</BoardTile>
+
+<MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
+    <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => OnEdit(menuTarget!)">Edit</MudMenuItem>
+    @if (menuTarget is not null && menuTarget.IsActive && menuTarget.Id != currentUserId)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnAskDeactivate(menuTarget!)">Deactivate</MudMenuItem>
+    }
+</MudMenu>
+
+<AccountDrawer @ref="drawer" OnSaved="Reload" />
+
+@code
+{
+    private MudDataGrid<AccountListResponse>? grid;
+    private AccountTileList? tileList;
+    private AccountDrawer? drawer;
+    private MudMenu? rowMenu;
+    private AccountListResponse? menuTarget;
+    private AccountListResponse? confirmTarget;
+    private bool confirmBusy;
+    private string? confirmError;
+    private string search = string.Empty;
+    private bool isActive = true;
+    private bool loading;
+    private string countLabel = string.Empty;
+    private Guid currentUserId;
+    private Guid? highlightId;
+    private System.Threading.Timer? debounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Accounts");
+        currentUserId = (await CurrentUser.Get())?.Id ?? Guid.Empty;
+    }
+
+    private async Task<GridData<AccountListResponse>> LoadServerData(GridState<AccountListResponse> state, CancellationToken cancellationToken)
+    {
+        loading = true;
+        var sort = state.SortDefinitions.FirstOrDefault();
+
+        var request = new AccountListRequest
+        {
+            Page = state.Page + 1,
+            PageSize = state.PageSize,
+            Search = string.IsNullOrWhiteSpace(search) ? null : search,
+            IsActive = isActive,
+            SortBy = sort is null ? "fullName" : char.ToLowerInvariant(sort.SortBy[0]) + sort.SortBy[1..],
+            SortDescending = sort?.Descending ?? false
+        };
+
+        var result = await AccountClient.GetPaged(request);
+        loading = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not load accounts", result.ErrorMessage);
+            countLabel = string.Empty;
+            return new GridData<AccountListResponse> { Items = Array.Empty<AccountListResponse>(), TotalItems = 0 };
+        }
+
+        int from = result.Data.ItemCount == 0 ? 0 : (result.Data.Page - 1) * result.Data.PageSize + 1;
+        int to = Math.Min(result.Data.Page * result.Data.PageSize, (int)result.Data.ItemCount);
+        countLabel = result.Data.ItemCount == 0 ? "No accounts" : $"{from} to {to} of {result.Data.ItemCount}";
+
+        return new GridData<AccountListResponse> { Items = result.Data.Data, TotalItems = (int)result.Data.ItemCount };
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value?.ToString() ?? string.Empty;
+        debounce?.Dispose();
+        debounce = new System.Threading.Timer(_ => InvokeAsync(Reload), null, 300, Timeout.Infinite);
+    }
+
+    private Task ClearSearch() { search = string.Empty; return Reload(); }
+
+    private Task SetActive(bool value) { isActive = value; confirmTarget = null; return Reload(); }
+
+    private async Task Reload()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+        if (tileList is not null) await tileList.Reload();
+        StateHasChanged();
+    }
+
+    private async Task OpenRowMenu(MouseEventArgs e, AccountListResponse item)
+    {
+        menuTarget = item;
+        if (rowMenu is not null) await rowMenu.OpenMenuAsync(e);
+    }
+
+    private void OnEdit(AccountListResponse item) => drawer?.OpenEdit(item, item.Id == currentUserId);
+
+    private void OnAskDeactivate(AccountListResponse item) { confirmTarget = item; confirmError = null; }
+
+    private async Task Deactivate()
+    {
+        if (confirmTarget is null) return;
+        confirmBusy = true;
+        var result = await AccountClient.Deactivate(confirmTarget.Id);
+        confirmBusy = false;
+
+        if (!result.IsSuccess) { confirmError = result.ErrorMessage; return; }
+
+        string name = confirmTarget.FullName;
+        confirmTarget = null;
+        Notifications.Notify(NotificationLevel.Success, $"{name} deactivated", null, new NotificationAction("View inactive", () => SetActive(false)));
+        await Reload();
+    }
+
+    private string RowClass(AccountListResponse item, int index) => item.Id == highlightId ? "row--highlight" : string.Empty;
+
+    private static IEnumerable<string> Roles(AccountListResponse item) => (item.RoleNames ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries);
+
+    private static StatusChip.StatusKind StatusOf(AccountListResponse item) => !item.IsActive ? StatusChip.StatusKind.Off : item.MustChangePassword ? StatusChip.StatusKind.Pending : StatusChip.StatusKind.Ok;
+
+    private static string StatusText(AccountListResponse item) => !item.IsActive ? "Deactivated" : item.MustChangePassword ? "Password pending" : "Active";
+
+}
+

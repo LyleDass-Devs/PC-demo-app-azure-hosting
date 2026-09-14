@@ -1,0 +1,69 @@
+﻿@inject IAccountClientService AccountClient
+@inject INotificationService Notifications
+
+<div class="tile-list" style="padding:12px">
+    @if (loadingFirst)
+    {
+        @for (int i = 0; i < 6; i++) { <SkeletonTile Rows="2" /> }
+    }
+    else if (failed)
+    {
+        <RetryTile OnRetry="Reload" />
+    }
+    else if (rows.Count == 0)
+    {
+        <EmptyTile Title="@(string.IsNullOrWhiteSpace(Search) ? "No accounts yet" : $"Nothing matches \"{Search}\"")" />
+    }
+    else
+    {
+        @foreach (AccountListResponse row in rows)
+        {
+            <div class="tile tile-row" @key="row.Id">
+                <span class="tile__edge" style="--edge-color:@(!row.IsActive ? "#C9C7D0" : row.MustChangePassword ? "var(--warn)" : "var(--ok)")" aria-hidden="true"></span>
+                <div class="grow">
+                    <div class="name">@row.FullName</div>
+                    <div class="sub">@row.RoleNames · @RelativeTime.Describe(row.LastLoginAt)</div>
+                </div>
+                <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <ActivatorContent><button class="iconbtn" type="button" aria-label="@($"Actions for {row.FullName}")" @onclick="context.ToggleAsync"><MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" /></button></ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => OnEdit.InvokeAsync(row)">Edit</MudMenuItem>
+                        @if (row.IsActive && row.Id != CurrentUserId) { <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnDeactivate.InvokeAsync(row)">Deactivate</MudMenuItem> }
+                    </ChildContent>
+                </MudMenu>
+            </div>
+        }
+        @if (rows.Count < total)
+        {
+            <div class="loadmore"><KubaButton Text="@($"Load more ({total - rows.Count} left)")" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" Busy="loadingMore" OnClick="LoadMore" /></div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string Search { get; set; } = string.Empty;
+    [Parameter] public bool IsActive { get; set; } = true;
+    [Parameter] public Guid CurrentUserId { get; set; }
+    [Parameter] public EventCallback<AccountListResponse> OnEdit { get; set; }
+    [Parameter] public EventCallback<AccountListResponse> OnDeactivate { get; set; }
+
+    private const int PAGE_SIZE = 25;
+    private readonly List<AccountListResponse> rows = new();
+    private int page = 1;
+    private long total;
+    private bool loadingFirst = true, loadingMore, failed;
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    public async Task Reload() { page = 1; rows.Clear(); loadingFirst = true; failed = false; await Load(); loadingFirst = false; StateHasChanged(); }
+
+    private async Task LoadMore() { page++; loadingMore = true; await Load(); loadingMore = false; }
+
+    private async Task Load()
+    {
+        var result = await AccountClient.GetPaged(new AccountListRequest { Page = page, PageSize = PAGE_SIZE, Search = string.IsNullOrWhiteSpace(Search) ? null : Search, IsActive = IsActive, SortBy = "fullName" });
+        if (!result.IsSuccess || result.Data is null) { failed = rows.Count == 0; if (!failed) Notifications.Notify(NotificationLevel.Error, "Could not load more", result.ErrorMessage); return; }
+        rows.AddRange(result.Data.Data);
+        total = result.Data.ItemCount;
+    }
+}
