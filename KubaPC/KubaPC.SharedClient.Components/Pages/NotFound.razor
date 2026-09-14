@@ -1,3 +1,40 @@
 @page "/not-found"
-@* Placeholder until the not-found tile is built (plan task 10). *@
-<p>Not found</p>
+@inject NavigationManager Navigation
+@inject PageHeader Header
+@inject AppInfo App
+
+<PageTitle>Not found · @App.Title</PageTitle>
+
+@* Reached by the router for any unknown address. A signed-in person sees it inside the shell;
+   a visitor sees the same message on the entry background with a way to sign in. *@
+<AuthorizeView>
+    <Authorized>
+        <div class="stray">
+            <EmptyTile Title="That page is not on the board" Message="@Message" Icon="@KubaIcons.Light.Question">
+                <KubaButton Text="Back to home" Icon="@KubaIcons.Regular.ArrowRight" Small="true"
+                            OnClick="@(() => Navigation.NavigateTo(ClientRoutes.HOME))" />
+            </EmptyTile>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="entry on-indigo">
+            <div class="entry__lock">
+                <KubaMark Size="56" />
+                <KubaWordmark Height="26" Class="entry__word" />
+            </div>
+            <div class="entry__tile">
+                <h1>That page is not on the board</h1>
+                <p>@Message</p>
+                <KubaButton Text="Sign in" Icon="@KubaIcons.Regular.ArrowRight" Block="true"
+                            OnClick="@(() => Navigation.NavigateTo(ClientRoutes.LOGIN))" />
+            </div>
+            <div class="entry__foot">Kuba Payment Certificate</div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private const string Message = "The address may be wrong, or the page has moved.";
+
+    protected override void OnInitialized() => Header.Set("Not found");
+}

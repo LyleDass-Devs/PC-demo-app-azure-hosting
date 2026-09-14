@@ -1,2 +1,18 @@
-@* Rendered by the router when a signed-in user lacks the role for a page. Placeholder until plan task 10. *@
-<p>Forbidden</p>
+@inject NavigationManager Navigation
+@inject PageHeader Header
+@inject AppInfo App
+
+<PageTitle>Not your role · @App.Title</PageTitle>
+
+@* Rendered by the router when a signed-in person lacks the role for a page. Nothing here
+   is disabled or hidden, the tile says plainly why and offers the way back. *@
+<div class="stray">
+    <EmptyTile Title="Not your role" Message="Your account does not have access to this screen. Ask an administrator if you think it should." Icon="@KubaIcons.Light.ShieldCheck">
+        <KubaButton Text="Back to home" Icon="@KubaIcons.Regular.ArrowRight" Small="true"
+                    OnClick="@(() => Navigation.NavigateTo(ClientRoutes.HOME))" />
+    </EmptyTile>
+</div>
+
+@code {
+    protected override void OnInitialized() => Header.Set("Not your role");
+}
