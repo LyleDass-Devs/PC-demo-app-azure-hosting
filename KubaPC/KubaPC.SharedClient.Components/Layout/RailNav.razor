@@ -8,7 +8,7 @@
         <KubaWordmark Height="15" Class="rail__word" />
     </div>
 
-    <div class="rail__items" style="--active-index:@activeIndex">
+    <div class="rail__items" style="@($"--active-index:{activeIndex}")">
         <span class="rail__marker" aria-hidden="true"></span>
         @foreach (NavDestination destination in visible)
         {

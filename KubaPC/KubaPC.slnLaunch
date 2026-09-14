@@ -1,0 +1,52 @@
+[
+  {
+    "Name": "API + Admin client",
+    "Projects": [
+      {
+        "Path": "KubaPC.API\\KubaPC.API.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      },
+      {
+        "Path": "KubaPC.Client.Admin\\KubaPC.Client.Admin.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      }
+    ]
+  },
+  {
+    "Name": "API + Operator client",
+    "Projects": [
+      {
+        "Path": "KubaPC.API\\KubaPC.API.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      },
+      {
+        "Path": "KubaPC.Client.Operator\\KubaPC.Client.Operator.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      }
+    ]
+  },
+  {
+    "Name": "API + both clients",
+    "Projects": [
+      {
+        "Path": "KubaPC.API\\KubaPC.API.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      },
+      {
+        "Path": "KubaPC.Client.Admin\\KubaPC.Client.Admin.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      },
+      {
+        "Path": "KubaPC.Client.Operator\\KubaPC.Client.Operator.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      }
+    ]
+  }
+]
