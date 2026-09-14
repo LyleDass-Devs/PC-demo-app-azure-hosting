@@ -1,17 +1,26 @@
 @inherits LayoutComponentBase
 @inject IRailStore RailStore
 
-<div class="shell @(collapsed ? "shell--mini" : "")">
-    <RailNav Destinations="KubaDestinations.All" Collapsed="collapsed" CollapsedChanged="OnCollapsedChanged" />
-    <div class="shell__main">
-        <ProgressLine />
-        <TopBar />
-        <main class="shell__body">
-            <RouteArrival>@Body</RouteArrival>
-        </main>
-    </div>
-</div>
-<BottomTabBar Destinations="KubaDestinations.All" />
+@* The shell only exists for a signed-in user; an anonymous visitor gets the routed body
+   alone, which is the redirect to sign in. *@
+<AuthorizeView>
+    <Authorized>
+        <div class="shell @(collapsed ? "shell--mini" : "")">
+            <RailNav Destinations="KubaDestinations.All" Collapsed="collapsed" CollapsedChanged="OnCollapsedChanged" />
+            <div class="shell__main">
+                <ProgressLine />
+                <TopBar />
+                <main class="shell__body">
+                    <RouteArrival>@Body</RouteArrival>
+                </main>
+            </div>
+        </div>
+        <BottomTabBar Destinations="KubaDestinations.All" />
+    </Authorized>
+    <NotAuthorized>
+        @Body
+    </NotAuthorized>
+</AuthorizeView>
 <NotificationHost />
 
 @code {

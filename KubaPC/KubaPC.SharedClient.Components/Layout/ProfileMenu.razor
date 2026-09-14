@@ -4,7 +4,7 @@
 
 <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
     <ActivatorContent>
-        <button class="avatar" type="button" aria-label="Account menu">@initials</button>
+        <button class="avatar" type="button" aria-label="Account menu" @onclick="context.ToggleAsync">@initials</button>
     </ActivatorContent>
     <ChildContent>
         <div style="padding:10px 16px 6px;min-width:220px">

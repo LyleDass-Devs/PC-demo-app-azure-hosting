@@ -83,7 +83,7 @@ body{margin:0;min-height:100vh;min-height:100dvh}
 
 .topbar{height:var(--topbar-h);display:flex;align-items:center;gap:16px;padding:0 28px;position:sticky;top:0;z-index:var(--z-sticky);background:color-mix(in srgb,var(--board) 92%,transparent);backdrop-filter:blur(8px)}
 .topbar__title{font:600 22px/1.2 var(--font);letter-spacing:-.01em;margin:0}
-.topbar__title:focus,.topbar__title:focus-visible{outline:none}
+.topbar__title:focus,.topbar__title:focus-visible,h1:focus,h1:focus-visible{outline:none}
 .topbar__spacer{flex:1}
 .avatar{width:36px;height:36px;border-radius:50%;background:var(--kuba-indigo);color:var(--kuba-yellow);display:grid;place-items:center;font:600 12px var(--font);border:0;cursor:pointer}
 @media (max-width:599px){.topbar{padding:0 16px;height:56px}.topbar__title{font-size:18px}}

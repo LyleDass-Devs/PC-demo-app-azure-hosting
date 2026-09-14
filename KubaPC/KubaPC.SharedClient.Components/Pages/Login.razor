@@ -1,0 +1,84 @@
+﻿@page "/login"
+@layout FocusedLayout
+@inject IAuthenticationClientService Authentication
+@inject NavigationManager Navigation
+@inject IMotionService Motion 
+@inject AppInfo App 
+
+<PageTitle> Sign in  · @App.Title</PageTitle>
+
+<div class="entry on-indigo">
+    <div class="entry__lock">
+        <KubaMark @ref="mark" Size="56" Outline="true" />
+        <img class="entry__word" src ="_content/KubaPC.SharedClient.Components/img/kuba-wordmark-white.png" alt="Kuba"
+    </div>
+
+    <div class="entry__tile" @ref="tile">
+        <h1>Sign in</h1>
+        <p>@App.EntrySubtitle</p>
+        @if (Changed == 1)
+        {
+            <p class="field__hint" style="margin-bottom:14px">Password changed. Sign in again.</p>
+        }
+
+        <form @onsubmit="Submit" @onsubmit:preventDefault novalidate>
+             <div class="form-error" role="alert">@error</div>
+
+            <div class="field">
+                <label for="email">Email address</label>
+                <input id="email" class="kinput" type="email" @bind="request.EmailAddress" autocomplete="username" inputmode="email" required autofocus/>
+            </div>
+
+            <PasswordField @bind-Value="request.Password" />
+            <KubaButton Type="submit" Text="Sign in" Icon="@KubaIcons.Regular.ArrowRight" Busy="busy" Block="true" />
+        </form>
+    </div>
+    <div class="entry__foot">Kuba Payment Certificate</div>
+</div>
+
+@code{
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery] public int? Changed { get; set; }
+
+    private readonly AuthenticationRequest request = new();
+    private string? error;
+    private bool busy;
+    private KubaMark? mark;
+    private ElementReference tile;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (mark is not null) await Motion.Animate(mark.Element, "mark-draw");
+            await Motion.Animate(tile, "entry-tile");
+        }
+    }
+
+    private async Task Submit()
+    {
+        error = null;
+        busy = true;
+
+        var result = await Authentication.Login(request);
+
+
+        busy = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            error = result.ErrorMessage ?? "Sign in failed.";
+            return;
+        }
+
+        string target = string.IsNullOrWhiteSpace(ReturnUrl) ? ClientRoutes.HOME : ReturnUrl;
+
+        if (result.Data.MustChangePassword)
+        {
+            Navigation.NavigateTo($"{ClientRoutes.CHANGE_PASSWORD}?returnUrl={Uri.EscapeDataString(target)}");   
+        }
+
+        Navigation.NavigateTo(target);
+    }
+
+}
