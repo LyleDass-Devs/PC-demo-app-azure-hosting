@@ -82,6 +82,36 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
+        public async Task<ContractListResponse?> SelectContract(Guid contractId)
+        {
+            const string sql = @"SELECT c.id, c.operator_id, o.operator_name, c.contract_number, c.contract_name, c.commencement_date, c.expiry_date, c.is_active,
+                                        c.bank_name, c.bank_branch_name, c.bank_branch_code, c.bank_account_name, c.bank_account_number, c.bank_account_type,
+                                        0 AS rate_count, 0 AS certificate_count, 0::bigint AS total_count
+                                 FROM contracts c
+                                 JOIN operators o ON o.id = c.operator_id
+                                 WHERE c.id = @ContractId";
+
+            ContractListRowModel? row = await _dataAccess.QuerySingleOrDefaultAsync<ContractListRowModel>(sql, new { ContractId = contractId });
+
+            return row is null ? null : new ContractListResponse
+            {
+                Id = row.Id,
+                OperatorId = row.OperatorId,
+                OperatorName = row.OperatorName,
+                ContractNumber = row.ContractNumber,
+                ContractName = row.ContractName,
+                CommencementDate = row.CommencementDate,
+                ExpiryDate = row.ExpiryDate,
+                IsActive = row.IsActive,
+                BankName = row.BankName,
+                BankBranchName = row.BankBranchName,
+                BankBranchCode = row.BankBranchCode,
+                BankAccountName = row.BankAccountName,
+                BankAccountNumber = row.BankAccountNumber,
+                BankAccountType = row.BankAccountType
+            };
+        }
+
         public async Task<CreateResult> CreateContract(CreateContractRequest request, Guid createdBy)
         {
             const string operatorSql = @"SELECT count(*) FROM operators WHERE id = @OperatorId AND is_active";

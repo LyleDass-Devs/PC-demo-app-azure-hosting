@@ -13,6 +13,7 @@ namespace KubaPC.SharedClient.Services
 
         /// <summary>Contracts always live under their operator.</summary>
         public static string Contracts(Guid operatorId) => $"/operators/{operatorId}/contracts";
+        public static string PenaltyList(Guid contractId) => $"/contracts/{contractId}/penalties";
         public const string LOGIN = "/login";
         public const string FORGOT_PASSWORD = "/forgot-password";
         public const string CHANGE_PASSWORD = "/change-password";
