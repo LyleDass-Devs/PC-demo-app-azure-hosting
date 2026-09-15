@@ -336,6 +336,62 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
+        /// <summary>
+        /// Brings a deactivated account back, together with the roles it lost at deactivation.
+        /// Deactivation stamps the account and its roles with the same modified_at, so that
+        /// timestamp is what identifies the roles to restore. The password is left as it was;
+        /// an administrator resets it separately if the person no longer knows it.
+        /// </summary>
+        public async Task<AccountOperationResult> ReactivateAccount(Guid accountId, Guid modifiedBy)
+        {
+            const string conflictSql = @"SELECT count(*)
+                                         FROM accounts other
+                                         JOIN accounts target ON target.id = @AccountId
+                                         WHERE other.is_active
+                                           AND other.id <> target.id
+                                           AND lower(other.email_address) = lower(target.email_address)";
+
+            long conflictCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(conflictSql, new { AccountId = accountId });
+
+            if (conflictCount > 0)
+            {
+                return AccountOperationResult.Failure("An active account already exists with that email address.");
+            }
+
+            const string sql = @"WITH target AS (
+                                   SELECT id, modified_at AS deactivated_at
+                                   FROM accounts
+                                   WHERE id = @AccountId AND NOT is_active
+                                 ),
+                                 restored_roles AS (
+                                   UPDATE account_roles ar
+                                   SET is_active = TRUE, modified_at = now(), modified_by = @ModifiedBy
+                                   FROM target
+                                   WHERE ar.account_id = target.id
+                                     AND NOT ar.is_active
+                                     AND ar.modified_at = target.deactivated_at
+                                   RETURNING ar.id
+                                 ),
+                                 reactivated_account AS (
+                                   UPDATE accounts a
+                                   SET is_active = TRUE, modified_at = now(), modified_by = @ModifiedBy
+                                   FROM target
+                                   WHERE a.id = target.id
+                                   RETURNING a.id
+                                 )
+                                 SELECT count(*) FROM reactivated_account";
+
+            long reactivatedCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(sql, new
+            {
+                AccountId = accountId,
+                ModifiedBy = modifiedBy
+            });
+
+            return reactivatedCount == 0
+                ? AccountOperationResult.Failure("No deactivated account was found with that id.")
+                : AccountOperationResult.Success();
+        }
+
         public async Task<AccountOperationResult> ResetPassword(Guid accountId, string temporaryPassword, Guid modifiedBy)
         {
 

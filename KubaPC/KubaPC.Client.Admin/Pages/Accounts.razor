@@ -23,7 +23,7 @@
 
     @if (!isActive)
     {
-        <p class="readonly-note">Inactive accounts are shown for reference and cannot be changed here.</p>
+        <p class="readonly-note">Inactive accounts cannot sign in. Reactivate one to bring it back with the roles it had.</p>
     }
 
     @if (confirmTarget is not null)
@@ -72,7 +72,7 @@
      </MudHidden>
 
      <MudHidden Breakpoint="Breakpoint.MdAndUp">
-        <AccountTileList @ref="tileList" Search="@search" IsActive="isActive" CurrentUserId="currentUserId" OnEdit="OnEdit" OnDeactivate="OnAskDeactivate" />
+        <AccountTileList @ref="tileList" Search="@search" IsActive="isActive" CurrentUserId="currentUserId" OnEdit="OnEdit" OnDeactivate="OnAskDeactivate" OnReactivate="Reactivate" />
     </MudHidden>
 </BoardTile>
 
@@ -81,6 +81,10 @@
     @if (menuTarget is not null && menuTarget.IsActive && menuTarget.Id != currentUserId)
     {
         <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnAskDeactivate(menuTarget!)">Deactivate</MudMenuItem>
+    }
+    @if (menuTarget is not null && !menuTarget.IsActive)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.UserPlus" OnClick="() => Reactivate(menuTarget!)">Reactivate</MudMenuItem>
     }
 </MudMenu>
 
@@ -182,6 +186,21 @@
         string name = confirmTarget.FullName;
         confirmTarget = null;
         Notifications.Notify(NotificationLevel.Success, $"{name} deactivated", null, new NotificationAction("View inactive", () => SetActive(false)));
+        await Reload();
+    }
+
+    // Reactivation is reversible, so no confirmation: the toast says what happened and where to find them.
+    private async Task Reactivate(AccountListResponse item)
+    {
+        var result = await AccountClient.Reactivate(item.Id);
+
+        if (!result.IsSuccess)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not reactivate", result.ErrorMessage);
+            return;
+        }
+
+        Notifications.Notify(NotificationLevel.Success, $"{item.FullName} reactivated", null, new NotificationAction("View active", () => SetActive(true)));
         await Reload();
     }
 

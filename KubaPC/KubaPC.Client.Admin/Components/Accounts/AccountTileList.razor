@@ -29,6 +29,7 @@
                     <ChildContent>
                         <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => OnEdit.InvokeAsync(row)">Edit</MudMenuItem>
                         @if (row.IsActive && row.Id != CurrentUserId) { <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnDeactivate.InvokeAsync(row)">Deactivate</MudMenuItem> }
+                        @if (!row.IsActive) { <MudMenuItem Icon="@KubaIcons.Regular.UserPlus" OnClick="() => OnReactivate.InvokeAsync(row)">Reactivate</MudMenuItem> }
                     </ChildContent>
                 </MudMenu>
             </div>
@@ -46,6 +47,7 @@
     [Parameter] public Guid CurrentUserId { get; set; }
     [Parameter] public EventCallback<AccountListResponse> OnEdit { get; set; }
     [Parameter] public EventCallback<AccountListResponse> OnDeactivate { get; set; }
+    [Parameter] public EventCallback<AccountListResponse> OnReactivate { get; set; }
 
     private const int PAGE_SIZE = 25;
     private readonly List<AccountListResponse> rows = new();
