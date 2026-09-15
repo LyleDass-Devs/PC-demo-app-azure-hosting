@@ -1,5 +1,6 @@
 ﻿@inject NavigationManager Navigation
 @inject ICurrentUserService CurrentUser
+@inject AppInfo App
 @implements IDisposable
 
 <nav class="rail on-indigo @(Collapsed ? "rail--mini" : "")" aria-label="Main navigation">
@@ -53,7 +54,7 @@
         Navigation.LocationChanged += OnLocationChanged;
         CurrentUser.Changed += OnUserChanged;
         user = await CurrentUser.Get();
-        visible = Destinations.Where(d => d.IsVisibleTo(user?.Roles ?? new List<string>())).ToList();
+        visible = Destinations.Where(d => d.IsVisibleTo(user?.Roles ?? new List<string>(), App.App)).ToList();
         UpdateActiveIndex();
     }
 

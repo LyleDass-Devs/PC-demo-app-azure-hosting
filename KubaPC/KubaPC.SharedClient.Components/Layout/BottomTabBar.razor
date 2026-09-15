@@ -1,5 +1,6 @@
 ﻿@inject NavigationManager Navigation
 @inject ICurrentUserService CurrentUser
+@inject AppInfo App
 @implements IDisposable
 
 <nav class="tabbar on-indigo" aria-label="Main navigation" style="--tab-count:@visible.Count;--active-index:@activeIndex">
@@ -23,7 +24,7 @@
     {
         Navigation.LocationChanged += OnLocationChanged;
         CurrentUserResponse? user = await CurrentUser.Get();
-        visible = Destinations.Where(d => d.IsVisibleTo(user?.Roles ?? new List<string>())).ToList();
+        visible = Destinations.Where(d => d.IsVisibleTo(user?.Roles ?? new List<string>(), App.App)).ToList();
         UpdateActiveIndex();
     }
 

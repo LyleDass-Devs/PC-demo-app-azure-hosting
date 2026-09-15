@@ -1,4 +1,4 @@
-using KubaPC.SharedClient.Components.Icons;
+﻿using KubaPC.SharedClient.Components.Icons;
 using KubaPC.SharedClient.Services;
 
 namespace KubaPC.SharedClient.Components.Navigation
@@ -9,7 +9,7 @@ namespace KubaPC.SharedClient.Components.Navigation
         public static readonly IReadOnlyList<NavDestination> All = new[]
         {
             new NavDestination("Home", ClientRoutes.HOME, KubaIcons.Regular.House, Exact: true),
-            new NavDestination("Accounts", ClientRoutes.ACCOUNTS, KubaIcons.Regular.Users, Roles: "SuperAdmin,Admin"),
+            new NavDestination("Accounts", ClientRoutes.ACCOUNTS, KubaIcons.Regular.Users, Roles: "SuperAdmin,Admin", App: KubaApp.Admin),
             new NavDestination("Me", ClientRoutes.ME, KubaIcons.Regular.User)
         };
     }

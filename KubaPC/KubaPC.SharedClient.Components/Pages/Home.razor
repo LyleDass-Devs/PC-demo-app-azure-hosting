@@ -1,4 +1,4 @@
-@page "/"
+﻿@page "/"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using KubaPC.SharedClient.Components.Navigation
 @inject ICurrentUserService CurrentUser
@@ -33,7 +33,7 @@
     {
         Header.Set("Home");
         user = await CurrentUser.Get();
-        visible = HomeTasks.All.Where(t => t.IsVisibleTo(user?.Roles ?? new List<string>())).ToList();
+        visible = HomeTasks.All.Where(t => t.IsVisibleTo(user?.Roles ?? new List<string>(), App.App)).ToList();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

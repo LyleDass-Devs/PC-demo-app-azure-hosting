@@ -33,7 +33,7 @@ builder.Services.AddMudServices();
 builder.Services.AddScoped<KubaPC.SharedClient.Components.Layout.PageHeader>();
 
 // The two strings that differ between the apps on shared pages.
-builder.Services.AddSingleton(new AppInfo("KubaPC", "Payment Certificate"));
+builder.Services.AddSingleton(new AppInfo(KubaApp.Operator, "KubaPC", "Payment Certificate"));
 
 builder.Services.AddScoped<AuthenticationStateProvider, KubaPcAuthenticationStateProvider>();
 
