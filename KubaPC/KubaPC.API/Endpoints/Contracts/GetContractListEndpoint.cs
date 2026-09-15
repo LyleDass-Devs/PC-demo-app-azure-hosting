@@ -32,7 +32,7 @@ namespace KubaPC.API.Endpoints.Contracts
             }
             catch (Exception exception)
             {
-                Logger.LogError(exception, "Get contract list failed for operator {OperatorId}", request.OperatorId);
+                Logger.LogError(exception, "Get contract list failed");
                 await Send.ErrorsAsync(500, ct);
             }
         }

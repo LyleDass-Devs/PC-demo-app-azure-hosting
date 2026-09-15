@@ -17,7 +17,7 @@ namespace KubaPC.SharedClient.Services.Api
 
         public async Task<ApiResult<PagedResponse<ContractListResponse>>> GetPaged(ContractListRequest request)
         {
-            return await httpService.Get<PagedResponse<ContractListResponse>>($"/contracts?operatorId={request.OperatorId}&{PagedQuery.From(request)}");
+            return await httpService.Get<PagedResponse<ContractListResponse>>($"/contracts?{PagedQuery.From(request)}{(request.OperatorId is null ? "" : $"&operatorId={request.OperatorId}")}");
         }
 
         public async Task<ApiResult<Guid>> Create(CreateContractRequest request)

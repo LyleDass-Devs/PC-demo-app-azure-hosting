@@ -222,6 +222,8 @@ html,body{overflow-x:clip}
 .kdrawer .mud-drawer-content{padding:24px;display:flex;flex-direction:column}
 .kdrawer h2{font:600 20px var(--font);margin:0 0 4px}
 .kdrawer .lede{color:var(--ink-2);font-size:13px;margin:0 0 20px}
+.kselect{appearance:none;-webkit-appearance:none;background:var(--tile) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%236F6D8A'><path d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/></svg>") no-repeat right 12px center/16px;padding-right:36px;cursor:pointer}
+.toolbar .kselect{width:auto;min-width:200px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:479px){.field-row{grid-template-columns:1fr}}
 .field__optional{font-weight:400;color:var(--ink-placeholder);font-size:12px;margin-left:6px}

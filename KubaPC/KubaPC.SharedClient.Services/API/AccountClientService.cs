@@ -46,6 +46,16 @@ namespace KubaPC.SharedClient.Services.Api
             return await httpService.Post("/accounts/reactivate", new ReactivateAccountRequest { Id = accountId });
         }
 
+        public async Task<ApiResult<List<Guid>>> GetOperatorIds(Guid accountId)
+        {
+            return await httpService.Get<List<Guid>>($"/accounts/{accountId}/operators");
+        }
+
+        public async Task<ApiResult> UpdateOperators(UpdateAccountOperatorsRequest request)
+        {
+            return await httpService.Post("/accounts/operators/update", request);
+        }
+
         public async Task<ApiResult> UpdateOwn(UpdateOwnAccountRequest request)
         {
             return await httpService.Put("/accounts/me", request);

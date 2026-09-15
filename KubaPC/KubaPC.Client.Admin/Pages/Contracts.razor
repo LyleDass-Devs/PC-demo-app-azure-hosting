@@ -1,3 +1,4 @@
+﻿@page "/contracts"
 @page "/operators/{OperatorId:guid}/contracts"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject IOperatorClientService OperatorClient
@@ -6,7 +7,7 @@
 @inject NavigationManager Navigation
 @inject PageHeader Header
 
-<PageTitle>Contracts · @(operatorName ?? "Operator") · KubaPC Admin</PageTitle>
+<PageTitle>Contracts@(operatorName is null ? "" : " · " + operatorName) · KubaPC Admin</PageTitle>
 
 @if (operatorMissing)
 {
@@ -18,7 +19,10 @@
     return;
 }
 
-<a class="backlink" href="@ClientRoutes.OPERATORS"><MudIcon Icon="@KubaIcons.Regular.ArrowLeft" /> All operators</a>
+@if (OperatorId is not null)
+{
+    <a class="backlink" href="@ClientRoutes.OPERATORS"><MudIcon Icon="@KubaIcons.Regular.ArrowLeft" /> All operators</a>
+}
 
 <BoardTile Class="tile--flush">
     <div class="toolbar">
@@ -26,6 +30,16 @@
             <MudIcon Icon="@KubaIcons.Regular.MagnifyingGlass" />
             <input class="kinput" type="search" placeholder="Search by number or name" aria-label="Search contracts" value="@search" @oninput="OnSearchInput" />
         </div>
+        @if (OperatorId is null)
+        {
+            <select class="kinput kselect" aria-label="Operator" @onchange="OnOperatorFilter">
+                <option value="">All operators</option>
+                @foreach (DropDownResponse item in operators)
+                {
+                    <option value="@item.Id" selected="@(item.Id == filterOperatorId)">@item.Value</option>
+                }
+            </select>
+        }
         <div class="seg" role="group" aria-label="Show">
             <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
             <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Inactive</button>
@@ -61,6 +75,12 @@
                 <TemplateColumn Title="Contract" SortBy="@(x => x.ContractNumber)" Sortable="true">
                     <CellTemplate><div class="name">@context.Item.ContractNumber</div><div class="email">@(context.Item.ContractName ?? "")</div></CellTemplate>
                 </TemplateColumn>
+                @if (OperatorId is null)
+                {
+                    <TemplateColumn Title="Operator" SortBy="@(x => x.OperatorName)" Sortable="true">
+                        <CellTemplate><a class="cell-link" href="@ClientRoutes.Contracts(context.Item.OperatorId)">@context.Item.OperatorName</a></CellTemplate>
+                    </TemplateColumn>
+                }
                 <TemplateColumn Title="Commencement" SortBy="@(x => x.CommencementDate)" Sortable="true">
                     <CellTemplate>@context.Item.CommencementDate.ToString("d MMM yyyy")</CellTemplate>
                 </TemplateColumn>
@@ -111,7 +131,7 @@
                     <span class="tile__edge" style="--edge-color:@(row.IsActive ? "var(--ok)" : "#C9C7D0")" aria-hidden="true"></span>
                     <div class="grow">
                         <div class="name">@row.ContractNumber</div>
-                        <div class="sub">@row.CommencementDate.ToString("d MMM yyyy") to @(row.ExpiryDate?.ToString("d MMM yyyy") ?? "open-ended")@(row.ContractName is null ? "" : " · " + row.ContractName)</div>
+                        <div class="sub">@(OperatorId is null ? row.OperatorName + " · " : "")@row.CommencementDate.ToString("d MMM yyyy") to @(row.ExpiryDate?.ToString("d MMM yyyy") ?? "open-ended")@(row.ContractName is null ? "" : " · " + row.ContractName)</div>
                     </div>
                     @if (operatorIsActive)
                     {
@@ -137,10 +157,10 @@
     }
 </MudMenu>
 
-<ContractDrawer @ref="drawer" OperatorId="OperatorId" OperatorName="@(operatorName ?? "")" OnSaved="Reload" />
+<ContractDrawer @ref="drawer" OperatorId="OperatorId" OperatorName="@(operatorName ?? "")" Operators="operators" OnSaved="Reload" />
 
 @code {
-    [Parameter] public Guid OperatorId { get; set; }
+    [Parameter] public Guid? OperatorId { get; set; }
 
     private MudDataGrid<ContractListResponse>? grid;
     private ContractDrawer? drawer;
@@ -155,6 +175,8 @@
     private string countLabel = string.Empty;
     private string? operatorName;
     private bool operatorIsActive = true, operatorMissing;
+    private Guid? filterOperatorId;
+    private List<DropDownResponse> operators = new();
     private List<ContractListResponse> phoneRows = new();
     private System.Threading.Timer? debounce;
 
@@ -162,7 +184,15 @@
     {
         Header.Set("Contracts");
 
-        var result = await OperatorClient.Get(OperatorId);
+        if (OperatorId is null)
+        {
+            var dropDown = await OperatorClient.GetDropDown();
+            operators = dropDown.Data ?? new List<DropDownResponse>();
+            await LoadPhoneRows();
+            return;
+        }
+
+        var result = await OperatorClient.Get(OperatorId.Value);
 
         if (!result.IsSuccess || result.Data is null)
         {
@@ -178,7 +208,7 @@
 
     private ContractListRequest BuildRequest(int page, int pageSize, string sortBy, bool descending) => new()
     {
-        OperatorId = OperatorId,
+        OperatorId = OperatorId ?? filterOperatorId,
         Page = page,
         PageSize = pageSize,
         Search = string.IsNullOrWhiteSpace(search) ? null : search,
@@ -224,6 +254,12 @@
     }
 
     private Task ClearSearch() { search = string.Empty; return Reload(); }
+
+    private Task OnOperatorFilter(ChangeEventArgs e)
+    {
+        filterOperatorId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        return Reload();
+    }
 
     private Task SetActive(bool value) { isActive = value; confirmTarget = null; return Reload(); }
 

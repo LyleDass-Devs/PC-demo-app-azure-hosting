@@ -1,5 +1,6 @@
 ﻿@inject IAccountClientService AccountClient
 @inject IRoleClientService Roles
+@inject IOperatorClientService OperatorClient
 @inject INotificationService Notifications
 
 <MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(480px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
@@ -53,6 +54,25 @@
                 }
             </div>
 
+            @if (NeedsOperators)
+            {
+                <div class="field">
+                    <label>Operators</label>
+                    <span class="field__hint">Which bus companies this person may work on. Leave empty for none.</span>
+                    <div class="chips" style="gap:8px;margin-top:4px">
+                        @foreach (DropDownResponse item in operators)
+                        {
+                            bool on = selectedOperatorIds.Contains(item.Id);
+                            <button type="button" class="chip chip--toggle @(on ? "chip--on" : "")" aria-pressed="@(on ? "true" : "false")" @onclick="() => ToggleOperator(item.Id)">@item.Value</button>
+                        }
+                        @if (operators.Count == 0)
+                        {
+                            <span class="field__hint">No active operators yet. Add one under Operators first.</span>
+                        }
+                    </div>
+                </div>
+            }
+
             <div class="kdrawer__actions">
                 <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
                 <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Create account")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
@@ -93,6 +113,13 @@
     private string editingEmail = string.Empty, fullName = string.Empty, email = string.Empty, password = string.Empty;
     private readonly HashSet<string> selectedRoles = new();
     private List<DropDownResponse> roles = new();
+    private List<DropDownResponse> operators = new();
+    private readonly HashSet<Guid> selectedOperatorIds = new();
+
+    // Only roles scoped to operators get grants; SuperAdmin, Monitor and DOT see everything anyway.
+    private static readonly string[] OPERATOR_SCOPED_ROLES = { "Authoriser", "Operator Staff", "Admin" };
+
+    private bool NeedsOperators => selectedRoles.Overlaps(OPERATOR_SCOPED_ROLES);
     private string? error;
     private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
     private ElementReference statusLine;
@@ -107,9 +134,10 @@
     {
         Reset(); 
         isEdit = false;
-        await EnsureRoles(); 
+        await EnsureRoles();
+        await EnsureOperators();
         open = true;
-        StateHasChanged(); 
+        StateHasChanged();
     }
 
     public async void OpenEdit(AccountListResponse account, bool self)
@@ -117,7 +145,11 @@
         Reset(); isEdit = true; isSelf = self;
         editingId = account.Id; editingEmail = account.EmailAddress; fullName = account.FullName; isTargetActive = account.IsActive;
         foreach (string role in (account.RoleNames ?? "").Split(", ", StringSplitOptions.RemoveEmptyEntries)) selectedRoles.Add(role);
-        await EnsureRoles(); open = true; StateHasChanged();
+        await EnsureRoles();
+        await EnsureOperators();
+        var granted = await AccountClient.GetOperatorIds(account.Id);
+        foreach (Guid id in granted.Data ?? new List<Guid>()) selectedOperatorIds.Add(id);
+        open = true; StateHasChanged();
     }
 
     private void Reset()
@@ -125,7 +157,7 @@
         error = null;
         fieldErrors = new Dictionary<string, string[]>();
         fullName = email = password = string.Empty;
-        selectedRoles.Clear(); isSelf = false; 
+        selectedRoles.Clear(); selectedOperatorIds.Clear(); isSelf = false;
         busy = false; 
         CloseReset();
     }
@@ -164,10 +196,19 @@
         if (!result.IsSuccess) Notifications.Notify(NotificationLevel.Error, "Could not load roles", result.ErrorMessage);
     }
 
-    private void ToggleRole(string role) 
+    private void ToggleRole(string role)
     {
         if (!selectedRoles.Remove(role))
             selectedRoles.Add(role);
+    }
+
+    private void ToggleOperator(Guid id) { if (!selectedOperatorIds.Remove(id)) selectedOperatorIds.Add(id); }
+
+    private async Task EnsureOperators()
+    {
+        if (operators.Count > 0) return;
+        var result = await OperatorClient.GetDropDown();
+        operators = result.Data ?? new List<DropDownResponse>();
     }
 
     private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
@@ -190,6 +231,17 @@
             fieldErrors = result.ValidationErrors;
             error = result.HasValidationErrors ? null : result.ErrorMessage;
             if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        Guid accountId = isEdit ? editingId : ((KubaPC.SharedClient.Services.Models.ApiResult<Guid>)result).Data;
+        List<Guid> wanted = NeedsOperators ? selectedOperatorIds.ToList() : new List<Guid>();
+        var grants = await AccountClient.UpdateOperators(new UpdateAccountOperatorsRequest { AccountId = accountId, OperatorIds = wanted });
+
+        if (!grants.IsSuccess)
+        {
+            error = grants.ErrorMessage ?? "The account was saved but its operators were not.";
+            await statusLine.FocusAsync();
             return;
         }
 

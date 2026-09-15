@@ -45,6 +45,9 @@
                 <TemplateColumn Title="Roles" Sortable="false">
                     <CellTemplate><div class="chips">@foreach (string role in Roles(context.Item)) { <span class="chip">@role</span> }</div></CellTemplate>
                 </TemplateColumn>
+                <TemplateColumn Title="Operators" Sortable="false">
+                    <CellTemplate><span class="email">@(context.Item.OperatorNames ?? "")</span></CellTemplate>
+                </TemplateColumn>
                 <TemplateColumn Title="Status" Sortable="false">
                     <CellTemplate><StatusChip Kind="@StatusOf(context.Item)" Text="@StatusText(context.Item)" /></CellTemplate>
                 </TemplateColumn>

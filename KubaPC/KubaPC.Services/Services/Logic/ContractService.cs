@@ -16,7 +16,8 @@ namespace KubaPC.Services.Services.Logic
             ["contractNumber"] = "c.contract_number",
             ["contractName"] = "c.contract_name",
             ["commencementDate"] = "c.commencement_date",
-            ["expiryDate"] = "c.expiry_date"
+            ["expiryDate"] = "c.expiry_date",
+            ["operatorName"] = "o.operator_name"
         };
 
         public ContractService(INpgsqlDataAccess dataAccess) : base(dataAccess)
@@ -28,13 +29,14 @@ namespace KubaPC.Services.Services.Logic
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mappedColumn) ? mappedColumn : "c.commencement_date";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
 
-            string sql = $@"SELECT c.id, c.operator_id, c.contract_number, c.contract_name, c.commencement_date, c.expiry_date, c.is_active,
+            string sql = $@"SELECT c.id, c.operator_id, o.operator_name, c.contract_number, c.contract_name, c.commencement_date, c.expiry_date, c.is_active,
                                    c.bank_name, c.bank_branch_name, c.bank_branch_code, c.bank_account_name, c.bank_account_number, c.bank_account_type,
                                    (SELECT count(*) FROM contract_rates r WHERE r.contract_id = c.id AND r.is_active) AS rate_count,
                                    (SELECT count(*) FROM payment_certificates p WHERE p.contract_id = c.id) AS certificate_count,
                                    count(*) OVER() AS total_count
                             FROM contracts c
-                            WHERE c.operator_id = @OperatorId
+                            JOIN operators o ON o.id = c.operator_id
+                            WHERE (@OperatorId IS NULL OR c.operator_id = @OperatorId)
                               AND (@Search IS NULL OR c.contract_number ILIKE @SearchPattern OR c.contract_name ILIKE @SearchPattern)
                               AND (@IsActive IS NULL OR c.is_active = @IsActive)
                             ORDER BY {sortColumn} {sortDirection}
@@ -62,6 +64,7 @@ namespace KubaPC.Services.Services.Logic
                 {
                     Id = row.Id,
                     OperatorId = row.OperatorId,
+                    OperatorName = row.OperatorName,
                     ContractNumber = row.ContractNumber,
                     ContractName = row.ContractName,
                     CommencementDate = row.CommencementDate,

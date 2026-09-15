@@ -13,6 +13,7 @@ namespace KubaPC.Models.Internal
         public DateTime? LastLoginAt { get; set; }
         public bool MustChangePassword { get; set; }
         public string? RoleNames { get; set; }
+        public string? OperatorNames { get; set; }
         public long TotalCount { get; set; }
     }
 }

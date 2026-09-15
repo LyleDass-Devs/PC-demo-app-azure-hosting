@@ -4,6 +4,6 @@ namespace KubaPC.Models.Contracts.Contracts.Requests
 {
     public class ContractListRequest : PagedListRequest
     {
-        public Guid OperatorId { get; set; }
+        public Guid? OperatorId { get; set; }
     }
 }

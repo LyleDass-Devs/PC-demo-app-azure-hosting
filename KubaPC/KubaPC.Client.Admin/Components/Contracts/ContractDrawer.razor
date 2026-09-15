@@ -4,11 +4,26 @@
 <MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(520px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
     <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
         <h2>@(isEdit ? "Edit contract" : "New contract")</h2>
-        <p class="lede">@(isEdit ? "Correct the reference, dates or bank details." : $"A contract held by {OperatorName}. The number is the public reference on every certificate.")</p>
+        <p class="lede">@(isEdit ? "Correct the reference, dates or bank details." : OperatorId is null ? "The number is the public reference on every certificate." : $"A contract held by {OperatorName}. The number is the public reference on every certificate.")</p>
 
         <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
 
         <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            @if (OperatorId is null && !isEdit)
+            {
+                <div class="field">
+                    <label for="contract-operator">Operator</label>
+                    <select id="contract-operator" class="kinput kselect @Invalid("operatorId")" @bind="chosenOperatorId">
+                        <option value="">Choose an operator</option>
+                        @foreach (DropDownResponse item in Operators)
+                        {
+                            <option value="@item.Id">@item.Value</option>
+                        }
+                    </select>
+                    @if (FieldError("operatorId") is string e0) { <span class="field__error">@e0</span> }
+                </div>
+            }
+
             <div class="field">
                 <label for="contract-number">Contract number</label>
                 <input id="contract-number" class="kinput @Invalid("contractNumber")" @bind="contractNumber" autocomplete="off" spellcheck="false" placeholder="ZNT 1129" required />
@@ -83,8 +98,9 @@
 </MudDrawer>
 
 @code {
-    [Parameter, EditorRequired] public Guid OperatorId { get; set; }
+    [Parameter] public Guid? OperatorId { get; set; }
     [Parameter] public string OperatorName { get; set; } = string.Empty;
+    [Parameter] public List<DropDownResponse> Operators { get; set; } = new();
     [Parameter] public EventCallback OnSaved { get; set; }
 
     private bool open, isEdit, busy;
@@ -92,6 +108,7 @@
     private string contractNumber = string.Empty;
     private string? contractName, bankName, bankBranchName, bankBranchCode, bankAccountName, bankAccountNumber, bankAccountType;
     private DateOnly? commencementDate, expiryDate;
+    private string chosenOperatorId = string.Empty;
     private string? error;
     private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
     private ElementReference statusLine;
@@ -126,6 +143,7 @@
         contractNumber = string.Empty;
         contractName = bankName = bankBranchName = bankBranchCode = bankAccountName = bankAccountNumber = bankAccountType = null;
         commencementDate = expiryDate = null;
+        chosenOperatorId = string.Empty;
         busy = false;
     }
 
@@ -153,7 +171,7 @@
             })
             : (await ContractClient.Create(new CreateContractRequest
             {
-                OperatorId = OperatorId, ContractNumber = contractNumber, ContractName = contractName,
+                OperatorId = OperatorId ?? (Guid.TryParse(chosenOperatorId, out Guid picked) ? picked : Guid.Empty), ContractNumber = contractNumber, ContractName = contractName,
                 CommencementDate = commencement, ExpiryDate = expiryDate,
                 BankName = bankName, BankBranchName = bankBranchName, BankBranchCode = bankBranchCode,
                 BankAccountName = bankAccountName, BankAccountNumber = bankAccountNumber, BankAccountType = bankAccountType

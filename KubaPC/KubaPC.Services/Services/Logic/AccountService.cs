@@ -148,6 +148,10 @@ namespace KubaPC.Services.Services.Logic
                                     FROM account_roles ar
                                     JOIN roles r ON r.id = ar.role_id AND r.is_active
                                     WHERE ar.account_id = a.id AND ar.is_active) AS role_names,
+                                   (SELECT string_agg(o.operator_name, ', ' ORDER BY o.operator_name)
+                                    FROM account_operators ao
+                                    JOIN operators o ON o.id = ao.operator_id AND o.is_active
+                                    WHERE ao.account_id = a.id AND ao.is_active) AS operator_names,
                                    count(*) OVER() AS total_count
                             FROM accounts a
                             WHERE (@Search IS NULL OR a.full_name ILIKE @SearchPattern OR a.email_address ILIKE @SearchPattern)
@@ -180,7 +184,8 @@ namespace KubaPC.Services.Services.Logic
                     IsActive = row.IsActive,
                     LastLoginAt = row.LastLoginAt,
                     MustChangePassword = row.MustChangePassword,
-                    RoleNames = row.RoleNames
+                    RoleNames = row.RoleNames,
+                    OperatorNames = row.OperatorNames
                 }).ToList()
             };
         }
@@ -295,6 +300,68 @@ namespace KubaPC.Services.Services.Logic
             });
 
             return (int)updatedCount;
+        }
+
+        public async Task<List<Guid>> SelectOperatorIds(Guid accountId)
+        {
+            const string sql = @"SELECT ao.operator_id
+                                 FROM account_operators ao
+                                 JOIN operators o ON o.id = ao.operator_id AND o.is_active
+                                 WHERE ao.account_id = @AccountId AND ao.is_active
+                                 ORDER BY o.operator_name";
+
+            return await _dataAccess.QueryAsync<Guid>(sql, new { AccountId = accountId });
+        }
+
+        public async Task<AccountOperationResult> UpdateOperators(UpdateAccountOperatorsRequest request, Guid modifiedBy)
+        {
+            List<Guid> operatorIds = request.OperatorIds.Distinct().ToList();
+
+            const string knownSql = @"SELECT count(*) FROM operators WHERE id = ANY(@OperatorIds) AND is_active";
+            long knownCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(knownSql, new { OperatorIds = operatorIds });
+
+            if (knownCount != operatorIds.Count)
+            {
+                return AccountOperationResult.Failure("One of the operators is unknown or no longer active.");
+            }
+
+            // Same replace-the-set shape as roles: remove what is not wanted, restore what was, add what is new.
+            const string sql = @"WITH target_account AS (
+                                   SELECT id FROM accounts WHERE id = @AccountId AND is_active
+                                 ),
+                                 removed AS (
+                                   UPDATE account_operators
+                                   SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy
+                                   WHERE account_id = @AccountId AND is_active AND operator_id <> ALL(@OperatorIds)
+                                   RETURNING id
+                                 ),
+                                 restored AS (
+                                   UPDATE account_operators
+                                   SET is_active = TRUE, modified_at = now(), modified_by = @ModifiedBy
+                                   WHERE account_id = @AccountId AND NOT is_active AND operator_id = ANY(@OperatorIds)
+                                   RETURNING id
+                                 ),
+                                 added AS (
+                                   INSERT INTO account_operators (account_id, operator_id, created_by)
+                                   SELECT target_account.id, wanted.operator_id, @ModifiedBy
+                                   FROM target_account
+                                   CROSS JOIN unnest(@OperatorIds) AS wanted(operator_id)
+                                   WHERE NOT EXISTS (SELECT 1 FROM account_operators
+                                                     WHERE account_id = target_account.id AND operator_id = wanted.operator_id)
+                                   RETURNING id
+                                 )
+                                 SELECT count(*) FROM target_account";
+
+            long accountCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(sql, new
+            {
+                request.AccountId,
+                OperatorIds = operatorIds,
+                ModifiedBy = modifiedBy
+            });
+
+            return accountCount == 0
+                ? AccountOperationResult.Failure("No active account was found with that id.")
+                : AccountOperationResult.Success();
         }
 
         public async Task<AccountOperationResult> DeactivateAccount(Guid accountId, Guid modifiedBy)

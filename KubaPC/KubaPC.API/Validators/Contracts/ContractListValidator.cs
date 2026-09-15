@@ -6,9 +6,5 @@ namespace KubaPC.API.Validators.Contracts
 {
     public class ContractListValidator : PagedListValidator<ContractListRequest>
     {
-        public ContractListValidator()
-        {
-            RuleFor(x => x.OperatorId).NotEmpty();
-        }
     }
 }

@@ -67,6 +67,16 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
+        public async Task<List<DropDownResponse>> SelectDropDown()
+        {
+            const string sql = @"SELECT id, operator_name AS value
+                                 FROM operators
+                                 WHERE is_active
+                                 ORDER BY operator_name";
+
+            return await _dataAccess.QueryAsync<DropDownResponse>(sql, new { });
+        }
+
         public async Task<OperatorListResponse?> SelectOperator(Guid operatorId)
         {
             const string sql = @"SELECT o.id, o.id_societe, o.operator_name, o.is_active, o.created_at,

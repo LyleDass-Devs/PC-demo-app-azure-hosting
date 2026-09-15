@@ -9,6 +9,7 @@ namespace KubaPC.SharedClient.Services
         public const string HOME = "/";
         public const string ACCOUNTS = "/accounts";
         public const string OPERATORS = "/operators";
+        public const string CONTRACTS = "/contracts";
 
         /// <summary>Contracts always live under their operator.</summary>
         public static string Contracts(Guid operatorId) => $"/operators/{operatorId}/contracts";

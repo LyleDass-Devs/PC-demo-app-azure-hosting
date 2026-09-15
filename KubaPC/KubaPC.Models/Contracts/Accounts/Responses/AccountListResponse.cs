@@ -13,5 +13,6 @@ namespace KubaPC.Models.Contracts.Accounts.Responses
         public DateTime? LastLoginAt { get; set; }
         public bool MustChangePassword { get; set; }
         public string? RoleNames { get; set; }
+        public string? OperatorNames { get; set; }
     }
 }

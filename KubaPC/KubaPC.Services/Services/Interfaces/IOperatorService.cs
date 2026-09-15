@@ -9,6 +9,7 @@ namespace KubaPC.Services.Services.Interfaces
     {
         Task<PagedResponse<OperatorListResponse>> SelectPagedOperatorList(OperatorListRequest request);
         Task<OperatorListResponse?> SelectOperator(Guid operatorId);
+        Task<List<DropDownResponse>> SelectDropDown();
         Task<CreateResult> CreateOperator(CreateOperatorRequest request, Guid createdBy);
         Task<OperationResult> UpdateOperator(UpdateOperatorRequest request, Guid modifiedBy);
         Task<OperationResult> DeactivateOperator(Guid operatorId, Guid modifiedBy);

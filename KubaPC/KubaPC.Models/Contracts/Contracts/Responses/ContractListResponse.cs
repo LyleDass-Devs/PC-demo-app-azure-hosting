@@ -4,6 +4,7 @@
     {
         public Guid Id { get; set; }
         public Guid OperatorId { get; set; }
+        public string OperatorName { get; set; } = string.Empty;
         public string ContractNumber { get; set; } = string.Empty;
         public string? ContractName { get; set; }
         public DateOnly CommencementDate { get; set; }
