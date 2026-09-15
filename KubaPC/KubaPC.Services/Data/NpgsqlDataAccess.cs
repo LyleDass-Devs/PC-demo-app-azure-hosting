@@ -16,7 +16,9 @@ namespace KubaPC.Services.Data
 
         static NpgsqlDataAccess()
         {
-            DefaultTypeMap.MatchNamesWithUnderscores = true;                                
+            DefaultTypeMap.MatchNamesWithUnderscores = true;
+            SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
+            SqlMapper.AddTypeHandler(new NullableDateOnlyTypeHandler());
         }
 
         public NpgsqlDataAccess(IConfiguration configuration)

@@ -1,0 +1,273 @@
+@page "/operators/{OperatorId:guid}/contracts"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
+@inject IOperatorClientService OperatorClient
+@inject IContractClientService ContractClient
+@inject INotificationService Notifications
+@inject NavigationManager Navigation
+@inject PageHeader Header
+
+<PageTitle>Contracts · @(operatorName ?? "Operator") · KubaPC Admin</PageTitle>
+
+@if (operatorMissing)
+{
+    <div class="stray">
+        <EmptyTile Title="That operator is not on the board" Message="It may have been removed, or the address is wrong." Icon="@KubaIcons.Light.Question">
+            <KubaButton Text="Back to operators" Icon="@KubaIcons.Regular.ArrowLeft" Small="true" OnClick="@(() => Navigation.NavigateTo(ClientRoutes.OPERATORS))" />
+        </EmptyTile>
+    </div>
+    return;
+}
+
+<a class="backlink" href="@ClientRoutes.OPERATORS"><MudIcon Icon="@KubaIcons.Regular.ArrowLeft" /> All operators</a>
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <div class="search">
+            <MudIcon Icon="@KubaIcons.Regular.MagnifyingGlass" />
+            <input class="kinput" type="search" placeholder="Search by number or name" aria-label="Search contracts" value="@search" @oninput="OnSearchInput" />
+        </div>
+        <div class="seg" role="group" aria-label="Show">
+            <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
+            <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Inactive</button>
+        </div>
+        <span class="toolbar__count">@countLabel</span>
+        @if (operatorIsActive)
+        {
+            <KubaButton Text="New contract" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
+        }
+    </div>
+
+    @if (!operatorIsActive)
+    {
+        <p class="readonly-note">This operator is deactivated. Its contracts are shown for reference; reactivate the operator to change them.</p>
+    }
+    else if (!isActive)
+    {
+        <p class="readonly-note">Inactive contracts keep their certificates and history. Reactivate one to use it again.</p>
+    }
+
+    @if (confirmTarget is not null)
+    {
+        <div style="padding:12px 16px 0">
+            <InlineConfirm Message="@($"Deactivate contract {confirmTarget.ContractNumber}? Certificates already issued stay on record, but no new certificate can be created for it.")"
+                           ConfirmText="Deactivate" Busy="confirmBusy" Error="@confirmError" OnConfirm="Deactivate" OnCancel="() => confirmTarget = null" />
+        </div>
+    }
+
+    <MudHidden Breakpoint="Breakpoint.SmAndDown">
+        <MudDataGrid @ref="grid" T="ContractListResponse" ServerData="LoadServerData" SortMode="SortMode.Single" Dense="true"
+                     RowsPerPage="25" Hover="true" FixedHeader="true" Height="calc(100vh - 300px)" Loading="loading" LoadingProgressColor="Color.Primary">
+            <Columns>
+                <TemplateColumn Title="Contract" SortBy="@(x => x.ContractNumber)" Sortable="true">
+                    <CellTemplate><div class="name">@context.Item.ContractNumber</div><div class="email">@(context.Item.ContractName ?? "")</div></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Commencement" SortBy="@(x => x.CommencementDate)" Sortable="true">
+                    <CellTemplate>@context.Item.CommencementDate.ToString("d MMM yyyy")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Expiry" SortBy="@(x => x.ExpiryDate)" Sortable="true">
+                    <CellTemplate>@(context.Item.ExpiryDate?.ToString("d MMM yyyy") ?? "Open-ended")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Bank" Sortable="false">
+                    <CellTemplate>@(context.Item.HasBankDetails ? context.Item.BankName : "Not captured")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Rates" Sortable="false">
+                    <CellTemplate>@context.Item.RateCount</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Certificates" Sortable="false">
+                    <CellTemplate>@context.Item.CertificateCount</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Status" Sortable="false">
+                    <CellTemplate><StatusChip Kind="@(context.Item.IsActive ? StatusChip.StatusKind.Ok : StatusChip.StatusKind.Off)" Text="@(context.Item.IsActive ? "Active" : "Deactivated")" /></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Sortable="false" CellStyle="width:56px">
+                    <CellTemplate>
+                        @if (operatorIsActive)
+                        {
+                            <button class="iconbtn" type="button" aria-label="@($"Actions for {context.Item.ContractNumber}")" @onclick="e => OpenRowMenu(e, context.Item)">
+                                <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                            </button>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <NoRecordsContent>
+                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No contracts yet" : $"Nothing matches \"{search}\"")" Message="@(string.IsNullOrWhiteSpace(search) && operatorIsActive ? $"Add the first contract for {operatorName} with New contract." : null)" Icon="@KubaIcons.Light.ClipboardText">
+                    @if (!string.IsNullOrWhiteSpace(search)) { <KubaButton Text="Clear search" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="ClearSearch" /> }
+                </EmptyTile>
+            </NoRecordsContent>
+            <PagerContent><MudDataGridPager T="ContractListResponse" PageSizeOptions="new[] { 25, 50, 100 }" /></PagerContent>
+        </MudDataGrid>
+    </MudHidden>
+
+    <MudHidden Breakpoint="Breakpoint.MdAndUp">
+        <div class="tile-list" style="padding:12px">
+            @if (phoneRows.Count == 0 && !loading)
+            {
+                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No contracts yet" : $"Nothing matches \"{search}\"")" Icon="@KubaIcons.Light.ClipboardText" />
+            }
+            @foreach (ContractListResponse row in phoneRows)
+            {
+                <div class="tile tile-row" @key="row.Id">
+                    <span class="tile__edge" style="--edge-color:@(row.IsActive ? "var(--ok)" : "#C9C7D0")" aria-hidden="true"></span>
+                    <div class="grow">
+                        <div class="name">@row.ContractNumber</div>
+                        <div class="sub">@row.CommencementDate.ToString("d MMM yyyy") to @(row.ExpiryDate?.ToString("d MMM yyyy") ?? "open-ended")@(row.ContractName is null ? "" : " · " + row.ContractName)</div>
+                    </div>
+                    @if (operatorIsActive)
+                    {
+                        <button class="iconbtn" type="button" aria-label="@($"Actions for {row.ContractNumber}")" @onclick="e => OpenRowMenu(e, row)">
+                            <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </MudHidden>
+</BoardTile>
+
+<MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
+    <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => drawer?.OpenEdit(menuTarget!)">Edit</MudMenuItem>
+    @if (menuTarget is not null && menuTarget.IsActive)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnAskDeactivate(menuTarget!)">Deactivate</MudMenuItem>
+    }
+    @if (menuTarget is not null && !menuTarget.IsActive)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.UserPlus" OnClick="() => Reactivate(menuTarget!)">Reactivate</MudMenuItem>
+    }
+</MudMenu>
+
+<ContractDrawer @ref="drawer" OperatorId="OperatorId" OperatorName="@(operatorName ?? "")" OnSaved="Reload" />
+
+@code {
+    [Parameter] public Guid OperatorId { get; set; }
+
+    private MudDataGrid<ContractListResponse>? grid;
+    private ContractDrawer? drawer;
+    private MudMenu? rowMenu;
+    private ContractListResponse? menuTarget;
+    private ContractListResponse? confirmTarget;
+    private bool confirmBusy;
+    private string? confirmError;
+    private string search = string.Empty;
+    private bool isActive = true;
+    private bool loading;
+    private string countLabel = string.Empty;
+    private string? operatorName;
+    private bool operatorIsActive = true, operatorMissing;
+    private List<ContractListResponse> phoneRows = new();
+    private System.Threading.Timer? debounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Contracts");
+
+        var result = await OperatorClient.Get(OperatorId);
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            operatorMissing = true;
+            return;
+        }
+
+        operatorName = result.Data.OperatorName;
+        operatorIsActive = result.Data.IsActive;
+        Header.Set($"Contracts · {operatorName}");
+        await LoadPhoneRows();
+    }
+
+    private ContractListRequest BuildRequest(int page, int pageSize, string sortBy, bool descending) => new()
+    {
+        OperatorId = OperatorId,
+        Page = page,
+        PageSize = pageSize,
+        Search = string.IsNullOrWhiteSpace(search) ? null : search,
+        IsActive = isActive,
+        SortBy = sortBy,
+        SortDescending = descending
+    };
+
+    private async Task<GridData<ContractListResponse>> LoadServerData(GridState<ContractListResponse> state, CancellationToken cancellationToken)
+    {
+        loading = true;
+        var sort = state.SortDefinitions.FirstOrDefault();
+        string sortBy = sort is null ? "commencementDate" : char.ToLowerInvariant(sort.SortBy[0]) + sort.SortBy[1..];
+
+        var result = await ContractClient.GetPaged(BuildRequest(state.Page + 1, state.PageSize, sortBy, sort?.Descending ?? false));
+        loading = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not load contracts", result.ErrorMessage);
+            countLabel = string.Empty;
+            return new GridData<ContractListResponse> { Items = Array.Empty<ContractListResponse>(), TotalItems = 0 };
+        }
+
+        int from = result.Data.ItemCount == 0 ? 0 : (result.Data.Page - 1) * result.Data.PageSize + 1;
+        int to = Math.Min(result.Data.Page * result.Data.PageSize, (int)result.Data.ItemCount);
+        countLabel = result.Data.ItemCount == 0 ? "No contracts" : $"{from} to {to} of {result.Data.ItemCount}";
+
+        return new GridData<ContractListResponse> { Items = result.Data.Data, TotalItems = (int)result.Data.ItemCount };
+    }
+
+    private async Task LoadPhoneRows()
+    {
+        var result = await ContractClient.GetPaged(BuildRequest(1, 100, "commencementDate", false));
+        phoneRows = result.Data?.Data ?? new List<ContractListResponse>();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value?.ToString() ?? string.Empty;
+        debounce?.Dispose();
+        debounce = new System.Threading.Timer(_ => InvokeAsync(Reload), null, 300, Timeout.Infinite);
+    }
+
+    private Task ClearSearch() { search = string.Empty; return Reload(); }
+
+    private Task SetActive(bool value) { isActive = value; confirmTarget = null; return Reload(); }
+
+    private async Task Reload()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+        await LoadPhoneRows();
+        StateHasChanged();
+    }
+
+    private async Task OpenRowMenu(MouseEventArgs e, ContractListResponse item)
+    {
+        menuTarget = item;
+        if (rowMenu is not null) await rowMenu.OpenMenuAsync(e);
+    }
+
+    private void OnAskDeactivate(ContractListResponse item) { confirmTarget = item; confirmError = null; }
+
+    private async Task Deactivate()
+    {
+        if (confirmTarget is null) return;
+        confirmBusy = true;
+        var result = await ContractClient.Deactivate(confirmTarget.Id);
+        confirmBusy = false;
+
+        if (!result.IsSuccess) { confirmError = result.ErrorMessage; return; }
+
+        string number = confirmTarget.ContractNumber;
+        confirmTarget = null;
+        Notifications.Notify(NotificationLevel.Success, $"Contract {number} deactivated", null, new NotificationAction("View inactive", () => SetActive(false)));
+        await Reload();
+    }
+
+    private async Task Reactivate(ContractListResponse item)
+    {
+        var result = await ContractClient.Reactivate(item.Id);
+
+        if (!result.IsSuccess)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not reactivate", result.ErrorMessage);
+            return;
+        }
+
+        Notifications.Notify(NotificationLevel.Success, $"Contract {item.ContractNumber} reactivated", null, new NotificationAction("View active", () => SetActive(true)));
+        await Reload();
+    }
+}

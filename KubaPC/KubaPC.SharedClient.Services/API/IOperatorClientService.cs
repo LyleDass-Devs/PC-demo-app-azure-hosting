@@ -8,6 +8,7 @@ namespace KubaPC.SharedClient.Services.Api
     public interface IOperatorClientService
     {
         Task<ApiResult<PagedResponse<OperatorListResponse>>> GetPaged(OperatorListRequest request);
+        Task<ApiResult<OperatorListResponse>> Get(Guid operatorId);
         Task<ApiResult<Guid>> Create(CreateOperatorRequest request);
         Task<ApiResult> Update(UpdateOperatorRequest request);
         Task<ApiResult> Deactivate(Guid operatorId);

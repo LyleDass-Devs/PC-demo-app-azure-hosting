@@ -1,7 +1,8 @@
-@page "/operators"
+﻿@page "/operators"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject IOperatorClientService OperatorClient
 @inject INotificationService Notifications
+@inject NavigationManager Navigation
 @inject PageHeader Header
 
 <PageTitle>Operators · KubaPC Admin</PageTitle>
@@ -41,7 +42,7 @@
                     <CellTemplate><div class="name">@context.Item.OperatorName</div><div class="email">@context.Item.IdSociete</div></CellTemplate>
                 </TemplateColumn>
                 <TemplateColumn Title="Contracts" Sortable="false">
-                    <CellTemplate>@context.Item.ContractCount</CellTemplate>
+                    <CellTemplate><a class="cell-link" href="@ClientRoutes.Contracts(context.Item.Id)">@context.Item.ContractCount</a></CellTemplate>
                 </TemplateColumn>
                 <TemplateColumn Title="Vehicles" Sortable="false">
                     <CellTemplate>@context.Item.VehicleCount</CellTemplate>
@@ -94,6 +95,7 @@
 
 <MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
     <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => drawer?.OpenEdit(menuTarget!)">Edit</MudMenuItem>
+    <MudMenuItem Icon="@KubaIcons.Regular.ClipboardText" OnClick="() => Navigation.NavigateTo(ClientRoutes.Contracts(menuTarget!.Id))">Contracts</MudMenuItem>
     @if (menuTarget is not null && menuTarget.IsActive)
     {
         <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnAskDeactivate(menuTarget!)">Deactivate</MudMenuItem>

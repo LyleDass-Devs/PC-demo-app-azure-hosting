@@ -18,7 +18,6 @@
             <div class="field">
                 <label for="id-societe">Company code</label>
                 <input id="id-societe" class="kinput @(FieldError("idSociete") is not null ? "invalid" : "")" @bind="idSociete" autocomplete="off" spellcheck="false" required />
-                <span class="field__hint">Exactly as it appears in the SAEIV export.</span>
                 @if (FieldError("idSociete") is string ce) { <span class="field__error">@ce</span> }
             </div>
 

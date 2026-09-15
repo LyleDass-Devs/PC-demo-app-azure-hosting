@@ -20,6 +20,11 @@ namespace KubaPC.SharedClient.Services.Api
             return await httpService.Get<PagedResponse<OperatorListResponse>>($"/operators?{PagedQuery.From(request)}");
         }
 
+        public async Task<ApiResult<OperatorListResponse>> Get(Guid operatorId)
+        {
+            return await httpService.Get<OperatorListResponse>($"/operators/{operatorId}");
+        }
+
         public async Task<ApiResult<Guid>> Create(CreateOperatorRequest request)
         {
             return await httpService.Post<Guid>("/operators/create", request);

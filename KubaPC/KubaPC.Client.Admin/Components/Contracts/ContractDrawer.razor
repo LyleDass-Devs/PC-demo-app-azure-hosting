@@ -1,0 +1,176 @@
+﻿@inject IContractClientService ContractClient
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(520px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <h2>@(isEdit ? "Edit contract" : "New contract")</h2>
+        <p class="lede">@(isEdit ? "Correct the reference, dates or bank details." : $"A contract held by {OperatorName}. The number is the public reference on every certificate.")</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            <div class="field">
+                <label for="contract-number">Contract number</label>
+                <input id="contract-number" class="kinput @Invalid("contractNumber")" @bind="contractNumber" autocomplete="off" spellcheck="false" placeholder="ZNT 1129" required />
+                @if (FieldError("contractNumber") is string e1) { <span class="field__error">@e1</span> }
+            </div>
+
+            <div class="field">
+                <label for="contract-name">Contract name <span class="field__optional">optional</span></label>
+                <input id="contract-name" class="kinput @Invalid("contractName")" @bind="contractName" autocomplete="off" />
+                @if (FieldError("contractName") is string e2) { <span class="field__error">@e2</span> }
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="commencement-date">Commencement</label>
+                    <input id="commencement-date" class="kinput @Invalid("commencementDate")" type="date" @bind="commencementDate" @bind:format="yyyy-MM-dd" required />
+                    @if (FieldError("commencementDate") is string e3) { <span class="field__error">@e3</span> }
+                </div>
+                <div class="field">
+                    <label for="expiry-date">Expiry <span class="field__optional">optional</span></label>
+                    <input id="expiry-date" class="kinput @Invalid("expiryDate")" type="date" @bind="expiryDate" @bind:format="yyyy-MM-dd" />
+                    @if (FieldError("expiryDate") is string e4) { <span class="field__error">@e4</span> }
+                </div>
+            </div>
+
+            <section class="drawer-section">
+                <h3>Bank details <span class="field__optional">optional</span></h3>
+                <p class="drawer-section__hint">Printed on Form A. Leave all empty, or fill in the account.</p>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="bank-name">Bank</label>
+                        <input id="bank-name" class="kinput @Invalid("bankName")" @bind="bankName" autocomplete="off" />
+                        @if (FieldError("bankName") is string e5) { <span class="field__error">@e5</span> }
+                    </div>
+                    <div class="field">
+                        <label for="bank-account-type">Account type</label>
+                        <input id="bank-account-type" class="kinput @Invalid("bankAccountType")" @bind="bankAccountType" autocomplete="off" placeholder="Cheque" />
+                        @if (FieldError("bankAccountType") is string e6) { <span class="field__error">@e6</span> }
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="bank-branch-name">Branch</label>
+                        <input id="bank-branch-name" class="kinput @Invalid("bankBranchName")" @bind="bankBranchName" autocomplete="off" />
+                        @if (FieldError("bankBranchName") is string e7) { <span class="field__error">@e7</span> }
+                    </div>
+                    <div class="field">
+                        <label for="bank-branch-code">Branch code</label>
+                        <input id="bank-branch-code" class="kinput @Invalid("bankBranchCode")" @bind="bankBranchCode" autocomplete="off" inputmode="numeric" />
+                        @if (FieldError("bankBranchCode") is string e8) { <span class="field__error">@e8</span> }
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="bank-account-name">Account name</label>
+                    <input id="bank-account-name" class="kinput @Invalid("bankAccountName")" @bind="bankAccountName" autocomplete="off" />
+                    @if (FieldError("bankAccountName") is string e9) { <span class="field__error">@e9</span> }
+                </div>
+                <div class="field">
+                    <label for="bank-account-number">Account number</label>
+                    <input id="bank-account-number" class="kinput @Invalid("bankAccountNumber")" @bind="bankAccountNumber" autocomplete="off" inputmode="numeric" />
+                    @if (FieldError("bankAccountNumber") is string e10) { <span class="field__error">@e10</span> }
+                </div>
+            </section>
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Add contract")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter, EditorRequired] public Guid OperatorId { get; set; }
+    [Parameter] public string OperatorName { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool open, isEdit, busy;
+    private Guid editingId;
+    private string contractNumber = string.Empty;
+    private string? contractName, bankName, bankBranchName, bankBranchCode, bankAccountName, bankAccountNumber, bankAccountType;
+    private DateOnly? commencementDate, expiryDate;
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    public void OpenCreate()
+    {
+        Reset();
+        isEdit = false;
+        open = true;
+        StateHasChanged();
+    }
+
+    public void OpenEdit(ContractListResponse item)
+    {
+        Reset();
+        isEdit = true;
+        editingId = item.Id;
+        contractNumber = item.ContractNumber;
+        contractName = item.ContractName;
+        commencementDate = item.CommencementDate;
+        expiryDate = item.ExpiryDate;
+        bankName = item.BankName; bankBranchName = item.BankBranchName; bankBranchCode = item.BankBranchCode;
+        bankAccountName = item.BankAccountName; bankAccountNumber = item.BankAccountNumber; bankAccountType = item.BankAccountType;
+        open = true;
+        StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        contractNumber = string.Empty;
+        contractName = bankName = bankBranchName = bankBranchCode = bankAccountName = bankAccountNumber = bankAccountType = null;
+        commencementDate = expiryDate = null;
+        busy = false;
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private string Invalid(string field) => FieldError(field) is null ? string.Empty : "invalid";
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        // An empty date goes as the default value, which the API rejects with the same message as a blank number,
+        // so the person sees every missing field at once instead of one per attempt.
+        DateOnly commencement = commencementDate ?? default;
+
+        var result = isEdit
+            ? await ContractClient.Update(new UpdateContractRequest
+            {
+                Id = editingId, ContractNumber = contractNumber, ContractName = contractName,
+                CommencementDate = commencement, ExpiryDate = expiryDate,
+                BankName = bankName, BankBranchName = bankBranchName, BankBranchCode = bankBranchCode,
+                BankAccountName = bankAccountName, BankAccountNumber = bankAccountNumber, BankAccountType = bankAccountType
+            })
+            : (await ContractClient.Create(new CreateContractRequest
+            {
+                OperatorId = OperatorId, ContractNumber = contractNumber, ContractName = contractName,
+                CommencementDate = commencement, ExpiryDate = expiryDate,
+                BankName = bankName, BankBranchName = bankBranchName, BankBranchCode = bankBranchCode,
+                BankAccountName = bankAccountName, BankAccountNumber = bankAccountNumber, BankAccountType = bankAccountType
+            })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Contract updated" : "Contract added", contractNumber);
+        await OnSaved.InvokeAsync();
+    }
+}

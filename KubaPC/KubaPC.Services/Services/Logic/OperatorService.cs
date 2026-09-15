@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.Operators.Requests;
 using KubaPC.Models.Contracts.Operators.Responses;
@@ -64,6 +64,29 @@ namespace KubaPC.Services.Services.Logic
                     ContractCount = row.ContractCount,
                     CreatedAt = row.CreatedAt
                 }).ToList()
+            };
+        }
+
+        public async Task<OperatorListResponse?> SelectOperator(Guid operatorId)
+        {
+            const string sql = @"SELECT o.id, o.id_societe, o.operator_name, o.is_active, o.created_at,
+                                        (SELECT count(*) FROM vehicles v WHERE v.operator_id = o.id AND v.is_active) AS vehicle_count,
+                                        (SELECT count(*) FROM contracts c WHERE c.operator_id = o.id AND c.is_active) AS contract_count,
+                                        0::bigint AS total_count
+                                 FROM operators o
+                                 WHERE o.id = @OperatorId";
+
+            OperatorListRowModel? row = await _dataAccess.QuerySingleOrDefaultAsync<OperatorListRowModel>(sql, new { OperatorId = operatorId });
+
+            return row is null ? null : new OperatorListResponse
+            {
+                Id = row.Id,
+                IdSociete = row.IdSociete,
+                OperatorName = row.OperatorName,
+                IsActive = row.IsActive,
+                VehicleCount = row.VehicleCount,
+                ContractCount = row.ContractCount,
+                CreatedAt = row.CreatedAt
             };
         }
 
