@@ -336,12 +336,6 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
-        /// <summary>
-        /// Brings a deactivated account back, together with the roles it lost at deactivation.
-        /// Deactivation stamps the account and its roles with the same modified_at, so that
-        /// timestamp is what identifies the roles to restore. The password is left as it was;
-        /// an administrator resets it separately if the person no longer knows it.
-        /// </summary>
         public async Task<AccountOperationResult> ReactivateAccount(Guid accountId, Guid modifiedBy)
         {
             const string conflictSql = @"SELECT count(*)
@@ -392,7 +386,6 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
-        /// <summary>Changes the display name of the signed-in person. Roles and email stay as they are.</summary>
         public async Task<AccountOperationResult> UpdateOwnName(Guid accountId, string fullName)
         {
             const string sql = @"UPDATE accounts

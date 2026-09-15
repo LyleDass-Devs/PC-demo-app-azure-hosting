@@ -1,12 +1,8 @@
-using Dapper;
+﻿using Dapper;
 using System.Data;
 
 namespace KubaPC.Services.Data
 {
-    /// <summary>
-    /// Lets Dapper pass and read <see cref="DateOnly"/> for Postgres date columns. Dapper knows
-    /// DateTime but not DateOnly, and a date-only column must never carry a time of day.
-    /// </summary>
     public sealed class DateOnlyTypeHandler : SqlMapper.TypeHandler<DateOnly>
     {
         public override void SetValue(IDbDataParameter parameter, DateOnly value)
@@ -23,7 +19,6 @@ namespace KubaPC.Services.Data
         };
     }
 
-    /// <summary>Same as <see cref="DateOnlyTypeHandler"/> for nullable date columns.</summary>
     public sealed class NullableDateOnlyTypeHandler : SqlMapper.TypeHandler<DateOnly?>
     {
         public override void SetValue(IDbDataParameter parameter, DateOnly? value)

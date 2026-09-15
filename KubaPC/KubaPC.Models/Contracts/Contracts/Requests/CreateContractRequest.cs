@@ -1,9 +1,5 @@
 ﻿namespace KubaPC.Models.Contracts.Contracts.Requests
 {
-    /// <summary>
-    /// A new contract for one operator. The contract number is the public reference that appears
-    /// on every certificate. Bank details are optional but, when given, must be complete.
-    /// </summary>
     public class CreateContractRequest
     {
         public Guid OperatorId { get; set; }

@@ -1,6 +1,5 @@
 ﻿namespace KubaPC.Models.Internal
 {
-    /// <summary>Raw row from the contract list query, including the window total.</summary>
     public class ContractListRowModel
     {
         public Guid Id { get; set; }

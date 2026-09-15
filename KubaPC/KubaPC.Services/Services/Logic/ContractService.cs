@@ -79,7 +79,6 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        /// <summary>Adds a contract to an active operator. The contract number must be unique among active contracts.</summary>
         public async Task<CreateResult> CreateContract(CreateContractRequest request, Guid createdBy)
         {
             const string operatorSql = @"SELECT count(*) FROM operators WHERE id = @OperatorId AND is_active";
@@ -169,7 +168,6 @@ namespace KubaPC.Services.Services.Logic
                 : OperationResult.Success();
         }
 
-        /// <summary>Soft-deletes a contract. Certificates already issued against it keep their history.</summary>
         public async Task<OperationResult> DeactivateContract(Guid contractId, Guid modifiedBy)
         {
             const string sql = @"UPDATE contracts

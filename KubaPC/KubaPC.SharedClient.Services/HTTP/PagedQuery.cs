@@ -2,7 +2,6 @@
 
 namespace KubaPC.SharedClient.Services.Http
 {
-    /// <summary>Turns the shared list request into the query string every list endpoint reads.</summary>
     public static class PagedQuery
     {
         public static string From(PagedListRequest request)

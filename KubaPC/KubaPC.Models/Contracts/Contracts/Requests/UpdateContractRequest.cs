@@ -1,6 +1,5 @@
 ﻿namespace KubaPC.Models.Contracts.Contracts.Requests
 {
-    /// <summary>Corrects a contract. The operator it belongs to never changes.</summary>
     public class UpdateContractRequest
     {
         public Guid Id { get; set; }

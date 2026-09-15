@@ -1,9 +1,5 @@
-namespace KubaPC.Models.Contracts.Common.Requests
+﻿namespace KubaPC.Models.Contracts.Common.Requests
 {
-    /// <summary>
-    /// Paging, search and sort shared by every list endpoint. A list that needs an extra
-    /// filter derives from this and adds only that filter.
-    /// </summary>
     public class PagedListRequest
     {
         public int Page { get; set; } = 1;

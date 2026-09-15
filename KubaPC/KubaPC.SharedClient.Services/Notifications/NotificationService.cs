@@ -77,7 +77,7 @@ namespace KubaPC.SharedClient.Services.Notifications
             }
             catch (TaskCanceledException)
             {
-                // Held by hover or focus, or dismissed by hand: the timer simply stops.
+                // Held by hover or focus
                 return;
             }
 

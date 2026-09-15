@@ -90,7 +90,6 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        /// <summary>Adds an operator. The company code must be unique among active operators.</summary>
         public async Task<CreateResult> CreateOperator(CreateOperatorRequest request, Guid createdBy)
         {
             string idSociete = request.IdSociete.Trim();
@@ -143,10 +142,6 @@ namespace KubaPC.Services.Services.Logic
                 : OperationResult.Success();
         }
 
-        /// <summary>
-        /// Soft-deletes an operator. Its contracts, vehicles and certificates keep their rows and
-        /// their history; the operator simply stops appearing in pickers and new work.
-        /// </summary>
         public async Task<OperationResult> DeactivateOperator(Guid operatorId, Guid modifiedBy)
         {
             const string sql = @"UPDATE operators

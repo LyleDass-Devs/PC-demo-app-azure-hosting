@@ -1,6 +1,5 @@
 ﻿namespace KubaPC.Models.Contracts.Contracts.Responses
 {
-    /// <summary>One contract with everything the edit drawer needs; the list is short per operator.</summary>
     public class ContractListResponse
     {
         public Guid Id { get; set; }

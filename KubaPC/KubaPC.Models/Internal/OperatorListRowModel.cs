@@ -1,6 +1,5 @@
-namespace KubaPC.Models.Internal
+﻿namespace KubaPC.Models.Internal
 {
-    /// <summary>Raw row from the operator list query, including the window total.</summary>
     public class OperatorListRowModel
     {
         public Guid Id { get; set; }
