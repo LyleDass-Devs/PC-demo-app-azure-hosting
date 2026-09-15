@@ -67,5 +67,10 @@ namespace KubaPC.SharedClient.Services.Api
         {
             return await httpService.Post("/accounts/change-password", request);
         }
+
+        public async Task<ApiResult> ResetPassword(ResetPasswordRequest request)
+        {
+            return await httpService.Post("/accounts/reset-password", request);
+        }
     }
 }

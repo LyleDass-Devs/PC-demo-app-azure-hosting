@@ -336,5 +336,31 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
+        public async Task<AccountOperationResult> ResetPassword(Guid accountId, string temporaryPassword, Guid modifiedBy)
+        {
+
+            if (accountId == modifiedBy)
+            {
+                return AccountOperationResult.Failure("Use Change password for your own account.");
+            }
+
+            const string sql = @"UPDATE accounts
+                         SET password_hash = @PasswordHash,
+                             password_changed_at = now(),
+                             must_change_password = TRUE,
+                             modified_at = now(),
+                             modified_by = @ModifiedBy
+                         WHERE id = @AccountId AND is_active";
+
+            int updatedCount = await _dataAccess.ExecuteAsync(sql, new
+            {
+                AccountId = accountId,
+                ModifiedBy = modifiedBy,
+                PasswordHash = passwordHelper.Hash(temporaryPassword)
+            });
+
+            return updatedCount == 0 ? AccountOperationResult.Failure("No active account was found with that id.") : AccountOperationResult.Success();
+        }
+
     }
 }

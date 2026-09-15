@@ -1,4 +1,4 @@
-@page "/me"
+﻿@page "/me"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject ICurrentUserService CurrentUser
 @inject IAuthenticationClientService Authentication
@@ -8,7 +8,7 @@
 
 <PageTitle>Me · @App.Title</PageTitle>
 
-<div style="max-width:440px">
+<div class="focus-card">
     <BoardTile Title="@(user?.FullName ?? string.Empty)" Subtitle="@(user?.EmailAddress)">
         <div class="chips" style="margin:10px 0 18px">
             @if (user is not null)

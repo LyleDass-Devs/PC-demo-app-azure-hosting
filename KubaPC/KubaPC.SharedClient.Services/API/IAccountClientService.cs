@@ -13,5 +13,6 @@ namespace KubaPC.SharedClient.Services.Api
         Task<ApiResult> Update(UpdateAccountRequest request);
         Task<ApiResult> Deactivate(Guid accountId);
         Task<ApiResult> ChangePassword(ChangePasswordRequest request);
+        Task<ApiResult> ResetPassword(ResetPasswordRequest request);
     }
 }
