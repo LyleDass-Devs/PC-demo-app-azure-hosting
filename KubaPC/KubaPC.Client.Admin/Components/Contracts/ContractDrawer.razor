@@ -3,7 +3,10 @@
 
 <MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(520px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
     <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
-        <h2>@(isEdit ? "Edit contract" : "New contract")</h2>
+        <div class="kdrawer__head">
+            <h2>@(isEdit ? "Edit contract" : "New contract")</h2>
+            <button class="iconbtn kdrawer__close" type="button" aria-label="Close" @onclick="Close" disabled="@busy"><MudIcon Icon="@KubaIcons.Regular.X" /></button>
+        </div>
         <p class="lede">@(isEdit ? "Correct the reference, dates or bank details." : OperatorId is null ? "The number is the public reference on every certificate." : $"A contract held by {OperatorName}. The number is the public reference on every certificate.")</p>
 
         <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>

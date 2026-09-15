@@ -1,4 +1,4 @@
-/* KubaPC shared styles. Loaded by both clients after MudBlazor.min.css.*/
+﻿/* KubaPC shared styles. Loaded by both clients after MudBlazor.min.css.*/
 
 @font-face{font-family:"Geist";src:url("../fonts/Geist-Variable-latin.woff2") format("woff2");font-weight:300 700;font-display:swap}
 @font-face{font-family:"Geist Mono";src:url("../fonts/GeistMono-Variable-latin.woff2") format("woff2");font-weight:400 600;font-display:swap}
@@ -219,8 +219,15 @@ html,body{overflow-x:clip}
 .list li span:last-child{color:var(--ink-2);white-space:nowrap}
 
 /* ---------- drawer ---------- */
-.kdrawer .mud-drawer-content{padding:24px;display:flex;flex-direction:column}
+.kdrawer{position:fixed!important;top:0;bottom:0;height:100dvh!important;max-height:100dvh;overflow-y:auto;overscroll-behavior:contain}
+.kdrawer .mud-drawer-content{padding:24px;display:flex;flex-direction:column;min-height:100%}
+.kdrawer__head{display:flex;align-items:flex-start;gap:12px;margin:0 0 4px}
+.kdrawer__head h2{flex:1;margin:0}
+.kdrawer__close{margin:-6px -8px 0 0;flex:none}
 .kdrawer h2{font:600 20px var(--font);margin:0 0 4px}
+/* The page behind an open drawer must not scroll; the overlay stays pinned to the viewport. */
+body:has(.mud-drawer--open){overflow:hidden}
+.mud-overlay{position:fixed!important;inset:0}
 .kdrawer .lede{color:var(--ink-2);font-size:13px;margin:0 0 20px}
 .kselect{appearance:none;-webkit-appearance:none;background:var(--tile) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%236F6D8A'><path d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/></svg>") no-repeat right 12px center/16px;padding-right:36px;cursor:pointer}
 .toolbar .kselect{width:auto;min-width:200px}

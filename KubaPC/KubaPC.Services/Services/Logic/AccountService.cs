@@ -16,6 +16,7 @@ namespace KubaPC.Services.Services.Logic
     public class AccountService : BaseService, IAccountService
     {
         private const string SUPER_ADMIN_ROLE = "SuperAdmin";
+        private const string OPERATOR_STAFF_ROLE = "Operator Staff";
         private static readonly Dictionary<string, string> SORTABLE_COLUMNS = new(StringComparer.OrdinalIgnoreCase)
         {
             ["fullName"] = "full_name",
@@ -323,6 +324,16 @@ namespace KubaPC.Services.Services.Logic
             if (knownCount != operatorIds.Count)
             {
                 return AccountOperationResult.Failure("One of the operators is unknown or no longer active.");
+            }
+
+            if (operatorIds.Count > 1)
+            {
+                List<string> roleNames = await SelectRoleNames(request.AccountId);
+
+                if (roleNames.Contains(OPERATOR_STAFF_ROLE))
+                {
+                    return AccountOperationResult.Failure("Operator Staff belong to one operator only.");
+                }
             }
 
             // Same replace-the-set shape as roles: remove what is not wanted, restore what was, add what is new.
