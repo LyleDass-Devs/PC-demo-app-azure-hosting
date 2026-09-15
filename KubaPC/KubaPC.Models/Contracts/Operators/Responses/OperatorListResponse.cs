@@ -1,5 +1,6 @@
-namespace KubaPC.Models.Contracts.Operators.Responses
+﻿namespace KubaPC.Models.Contracts.Operators.Responses
 {
+    /// <summary>One operator as shown in the list. IdSociete is the company code the SAEIV feed uses.</summary>
     public class OperatorListResponse
     {
         public Guid Id { get; set; }
