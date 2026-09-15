@@ -9,8 +9,8 @@ namespace KubaPC.API.Validators.Operators
         public UpdateOperatorValidator()
         {
             RuleFor(x => x.Id).NotEmpty();
-            RuleFor(x => x.IdSociete).NotEmpty().MaximumLength(50);
-            RuleFor(x => x.OperatorName).NotEmpty().MaximumLength(200);
+            RuleFor(x => x.IdSociete).NotEmpty().WithMessage("Enter the company code.").MaximumLength(50);
+            RuleFor(x => x.OperatorName).NotEmpty().WithMessage("Enter the operator name.").MaximumLength(200);
         }
     }
 }
