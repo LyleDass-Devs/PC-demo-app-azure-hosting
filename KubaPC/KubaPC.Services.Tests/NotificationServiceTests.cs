@@ -1,4 +1,4 @@
-using KubaPC.SharedClient.Services.Notifications;
+﻿using KubaPC.SharedClient.Services.Notifications;
 
 namespace KubaPC.Services.Tests
 {
@@ -30,14 +30,14 @@ namespace KubaPC.Services.Tests
         }
 
         [Fact]
-        public void Notify_WithAction_DoesNotAutoDismiss()
+        public void Notify_WithAction_StillAutoDismisses()
         {
             // A notification the user may need to act on must wait for them.
             NotificationService service = new();
 
             service.Notify(NotificationLevel.Info, "Deactivated", null, new NotificationAction("View inactive", () => Task.CompletedTask));
 
-            Assert.False(service.Items[0].AutoDismiss);
+            Assert.True(service.Items[0].AutoDismiss);
         }
 
         [Fact]

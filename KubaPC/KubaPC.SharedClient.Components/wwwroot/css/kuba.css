@@ -231,18 +231,23 @@ html,body{overflow-x:clip}
 .status-line:empty{display:none}
 
 /* ---------- notifications ---------- */
-.notify{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:var(--z-notify);display:flex;flex-direction:column-reverse;gap:10px;width:min(440px,calc(100% - 32px));pointer-events:none}
-@media (max-width:599px){.notify{bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px)}}
-.notify__item{pointer-events:auto;position:relative;background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-tile);padding:12px 14px 14px 18px;box-shadow:var(--shadow-overlay);animation:notify-in 420ms cubic-bezier(.34,1.3,.64,1);overflow:hidden}
-.notify__item::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:2px;border-radius:2px;background:var(--edge-color,var(--info))}
-.notify__title{font-weight:600;font-size:14px;margin:0}
-.notify__msg{font-size:13px;color:var(--ink-2);margin:2px 0 0}
-.notify__row{display:flex;align-items:flex-start;gap:12px}
-.notify__close{margin-left:auto;width:32px;height:32px;border:0;background:transparent;color:var(--ink-2);border-radius:8px;cursor:pointer;display:grid;place-items:center;flex:none}
-.notify__action{margin-top:8px;font:600 13px var(--font);color:var(--kuba-indigo);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-.notify__bar{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--edge-color,var(--info));transform-origin:left;animation:notify-bar var(--life,6s) linear forwards}
+.notify{position:fixed;top:calc(var(--topbar-h) + 12px);right:16px;z-index:var(--z-notify);display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100% - 32px));pointer-events:none}
+@media (max-width:599px){.notify{top:calc(var(--topbar-h) + 8px + env(safe-area-inset-top));left:16px;right:16px;width:auto}}
+/* Solid fills by level, white text; every fill passes 4.5:1 against white. */
+.notify__item{pointer-events:auto;position:relative;overflow:hidden;background:var(--notify-bg,var(--info));color:#fff;border-radius:10px;padding:10px 8px 12px 14px;box-shadow:var(--shadow-overlay);animation:notify-in 360ms cubic-bezier(.34,1.3,.64,1)}
+.notify__item--success{--notify-bg:var(--ok)}
+.notify__item--error{--notify-bg:var(--danger)}
+.notify__item--warning{--notify-bg:var(--warn)}
+.notify__item--info{--notify-bg:var(--info)}
+.notify__title{font-weight:600;font-size:13px;line-height:1.3;margin:0}
+.notify__msg{font-size:12px;line-height:1.4;color:rgba(255,255,255,.88);margin:2px 0 0}
+.notify__row{display:flex;align-items:flex-start;gap:8px}
+.notify__close{margin-left:auto;width:28px;height:28px;border:0;background:transparent;color:rgba(255,255,255,.85);border-radius:6px;cursor:pointer;display:grid;place-items:center;flex:none}
+.notify__close:hover{background:rgba(255,255,255,.14);color:#fff}
+.notify__action{margin-top:6px;font:600 12px var(--font);color:#fff;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.notify__bar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:rgba(255,255,255,.55);transform-origin:left;animation:notify-bar var(--life,5s) linear forwards}
 .notify__item:hover .notify__bar,.notify__item:focus-within .notify__bar{animation-play-state:paused}
-@keyframes notify-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes notify-in{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 @keyframes notify-bar{to{transform:scaleX(0)}}
 
 /* ---------- reduced motion ---------- */

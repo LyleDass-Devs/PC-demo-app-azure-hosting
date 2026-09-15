@@ -1,10 +1,12 @@
-@inject INotificationService Notifications
+﻿@inject INotificationService Notifications
 @implements IDisposable
 
 <div class="notify" aria-live="polite">
     @foreach (NotificationItem item in Notifications.Items)
     {
-        <div class="notify__item" @key="item.Id" style="--edge-color:@EdgeColor(item.Level);--life:6s" role="@(item.Level == NotificationLevel.Error ? "alert" : "status")">
+        <div class="notify__item notify__item--@LevelClass(item.Level)" @key="item.Id" style="--life:@LifeSeconds" role="@(item.Level == NotificationLevel.Error ? "alert" : "status")"
+             @onmouseenter="() => Notifications.Hold(item.Id)" @onmouseleave="() => Notifications.Release(item.Id)"
+             @onfocusin="() => Notifications.Hold(item.Id)" @onfocusout="() => Notifications.Release(item.Id)">
             <div class="notify__row">
                 <div>
                     <p class="notify__title">@item.Title</p>
@@ -23,22 +25,24 @@
             </div>
             @if (item.AutoDismiss)
             {
-                @* The bar's CSS animation is the timer: hover or focus pauses it, and its end dismisses the item. *@
-                <span class="notify__bar" aria-hidden="true" @onanimationend="() => Notifications.Dismiss(item.Id)"></span>
+                @* The bar only shows the time left; the service owns the timer and pauses it on hover or focus. *@
+                <span class="notify__bar" aria-hidden="true"></span>
             }
         </div>
     }
 </div>
 
 @code {
+    private static string LifeSeconds => $"{NotificationService.LIFETIME.TotalSeconds:0}s";
+
     protected override void OnInitialized() => Notifications.Changed += StateHasChanged;
 
-    private static string EdgeColor(NotificationLevel level) => level switch
+    private static string LevelClass(NotificationLevel level) => level switch
     {
-        NotificationLevel.Success => "var(--ok)",
-        NotificationLevel.Warning => "var(--warn)",
-        NotificationLevel.Error => "var(--danger)",
-        _ => "var(--info)"
+        NotificationLevel.Success => "success",
+        NotificationLevel.Warning => "warning",
+        NotificationLevel.Error => "error",
+        _ => "info"
     };
 
     private async Task RunAction(NotificationItem item)
