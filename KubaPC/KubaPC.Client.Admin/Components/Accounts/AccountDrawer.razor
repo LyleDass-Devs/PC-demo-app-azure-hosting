@@ -58,6 +58,30 @@
                 <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Create account")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
             </div>
         </form>
+
+        @if (isEdit && !isSelf && isTargetActive)
+        {
+            <section class="drawer-section">
+                <h3>Password</h3>
+                @if (!isResetOpen)
+                {
+                    <p class="drawer-section__hint">Forgotten password? Set a temporary one; they choose their own at next sign-in.</p>
+                    <KubaButton Text="Reset password" Icon="@KubaIcons.Regular.Key" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="() => isResetOpen = true" />
+                }
+                else
+                {
+                    <form @onsubmit="ResetPassword" @onsubmit:preventDefault novalidate>
+                        <div class="status-line" role="alert" tabindex="-1" @ref="resetStatusLine">@resetError</div>
+                        <PasswordField @bind-Value="temporaryPassword" Label="Temporary password" Id="temp-password" AutoComplete="new-password" Error="@ResetFieldError()" />
+                        <PasswordStrengthLine Value="@temporaryPassword" />
+                        <div class="drawer-section__actions">
+                            <KubaButton Text="Cancel" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="CloseReset" Disabled="resetBusy" />
+                            <KubaButton Type="submit" Text="Reset password" Small="true" Icon="@KubaIcons.Regular.Key" Busy="resetBusy" />
+                        </div>
+                    </form>
+                }
+            </section>
+        }
     </MudFocusTrap>
 </MudDrawer>
 
@@ -73,6 +97,12 @@
     private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
     private ElementReference statusLine;
 
+    private bool isTargetActive, isResetOpen, resetBusy;
+    private string temporaryPassword = string.Empty;
+    private string? resetError;
+    private IReadOnlyDictionary<string, string[]> resetFieldErrors = new Dictionary<string, string[]>();
+    private ElementReference resetStatusLine;
+
     public async void OpenCreate() 
     {
         Reset(); 
@@ -85,7 +115,7 @@
     public async void OpenEdit(AccountListResponse account, bool self)
     {
         Reset(); isEdit = true; isSelf = self;
-        editingId = account.Id; editingEmail = account.EmailAddress; fullName = account.FullName;
+        editingId = account.Id; editingEmail = account.EmailAddress; fullName = account.FullName; isTargetActive = account.IsActive;
         foreach (string role in (account.RoleNames ?? "").Split(", ", StringSplitOptions.RemoveEmptyEntries)) selectedRoles.Add(role);
         await EnsureRoles(); open = true; StateHasChanged();
     }
@@ -97,6 +127,33 @@
         fullName = email = password = string.Empty;
         selectedRoles.Clear(); isSelf = false; 
         busy = false; 
+        CloseReset();
+    }
+
+    private void CloseReset()
+    {
+        isResetOpen = false; resetBusy = false; temporaryPassword = string.Empty;
+        resetError = null; resetFieldErrors = new Dictionary<string, string[]>();
+    }
+
+    private string? ResetFieldError() => resetFieldErrors.TryGetValue("temporaryPassword", out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private async Task ResetPassword()
+    {
+        resetError = null; resetFieldErrors = new Dictionary<string, string[]>(); resetBusy = true;
+        var result = await AccountClient.ResetPassword(new ResetPasswordRequest { Id = editingId, TemporaryPassword = temporaryPassword });
+        resetBusy = false;
+
+        if (!result.IsSuccess)
+        {
+            resetFieldErrors = result.ValidationErrors;
+            resetError = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (resetError is not null) await resetStatusLine.FocusAsync();
+            return;
+        }
+
+        CloseReset();
+        Notifications.Notify(NotificationLevel.Success, "Password reset", $"Give {fullName} the temporary password. They choose their own at next sign-in.");
     }
 
     private async Task EnsureRoles()

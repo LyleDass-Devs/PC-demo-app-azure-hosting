@@ -1,5 +1,4 @@
-/* KubaPC shared styles. Loaded by both clients after MudBlazor.min.css.
-   Section order: tokens, base, splash, shell, entry, inputs, buttons, tiles, screens, drawer, notifications, reduced motion. */
+/* KubaPC shared styles. Loaded by both clients after MudBlazor.min.css.*/
 
 @font-face{font-family:"Geist";src:url("../fonts/Geist-Variable-latin.woff2") format("woff2");font-weight:300 700;font-display:swap}
 @font-face{font-family:"Geist Mono";src:url("../fonts/GeistMono-Variable-latin.woff2") format("woff2");font-weight:400 600;font-display:swap}
@@ -223,6 +222,10 @@ html,body{overflow-x:clip}
 .kdrawer .mud-drawer-content{padding:24px;display:flex;flex-direction:column}
 .kdrawer h2{font:600 20px var(--font);margin:0 0 4px}
 .kdrawer .lede{color:var(--ink-2);font-size:13px;margin:0 0 20px}
+.drawer-section{margin-top:28px;padding-top:20px;border-top:1px solid var(--tile-edge)}
+.drawer-section h3{font:600 14px/1.3 var(--font);margin:0 0 6px}
+.drawer-section__hint{color:var(--ink-2);font-size:13px;margin:0 0 12px}
+.drawer-section__actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
 .kdrawer__actions{display:flex;gap:10px;justify-content:flex-end;margin-top:auto;padding-top:16px}
 .status-line{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:#FBEAE7;color:var(--danger);font-size:13px;margin-bottom:16px}
 .status-line:empty{display:none}
