@@ -23,29 +23,7 @@ namespace KubaPC.SharedClient.Services.Api
        
         public async Task<ApiResult<PagedResponse<AccountListResponse>>> GetPaged(AccountListRequest request)
         {
-            List<string> parameters = new()
-            {
-                $"page={request.Page}",
-                $"pageSize={request.PageSize}",
-                $"sortDescending={request.SortDescending}"
-            };
-
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                parameters.Add($"search={Uri.EscapeDataString(request.Search)}");
-            }
-
-            if (request.IsActive.HasValue)
-            {
-                parameters.Add($"isActive={request.IsActive.Value}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.SortBy))
-            {
-                parameters.Add($"sortBy={Uri.EscapeDataString(request.SortBy)}");
-            }
-
-            return await httpService.Get<PagedResponse<AccountListResponse>>($"/accounts?{string.Join("&", parameters)}");
+            return await httpService.Get<PagedResponse<AccountListResponse>>($"/accounts?{PagedQuery.From(request)}");
         }
 
         public async Task<ApiResult<Guid>> Create(CreateAccountRequest request)

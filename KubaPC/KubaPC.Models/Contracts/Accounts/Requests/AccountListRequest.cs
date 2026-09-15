@@ -1,16 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using KubaPC.Models.Contracts.Common.Requests;
 
 namespace KubaPC.Models.Contracts.Accounts.Requests
 {
-    public class AccountListRequest
+    /// <summary>The account list has no filters beyond the shared ones.</summary>
+    public class AccountListRequest : PagedListRequest
     {
-        public int Page { get; set; } = 1;
-        public int PageSize { get; set; } = 15;
-        public string? Search { get; set; }
-        public bool? IsActive { get; set; }
-        public string? SortBy { get; set; }
-        public bool SortDescending { get; set; }
     }
 }
