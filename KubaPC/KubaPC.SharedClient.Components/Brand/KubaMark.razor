@@ -2,7 +2,7 @@
    cut from the same circle, so they always line up at any size. pathLength=1 lets CSS or
    GSAP animate stroke-dashoffset from 1 to 0 regardless of the real path length. *@
 <svg class="@($"kuba-mark {(Outline ? "kuba-mark--outline" : "")} {Class}")"
-     viewBox="0 0 100 100" width="@Size" height="@Size" aria-hidden="true" @ref="Element">
+     viewBox="0 0 100 100" width="@Size" height="@Size" overflow="visible" aria-hidden="true" @ref="Element">
     <path pathLength="1" d="M50 2 A48 48 0 0 0 50 98 Z" />
     <path pathLength="1" d="M50 50 L83.94 16.06 A48 48 0 0 1 83.94 83.94 Z" />
 </svg>
