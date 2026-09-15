@@ -29,6 +29,8 @@
   };
 
   window.kubaMotion = {
+    // A Blazor app starts with one history entry; anything beyond it was our own navigation.
+    canGoBack() { return window.history.length > 1 && document.referrer !== "" || window.history.length > 2; },
     animate(el, name) {
       const recipe = recipes[name];
       if (!el || !recipe || !ready()) return;

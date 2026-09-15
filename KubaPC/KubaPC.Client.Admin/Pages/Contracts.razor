@@ -19,15 +19,12 @@
     return;
 }
 
-@if (OperatorId is not null)
-{
-    <a class="backlink" href="@ClientRoutes.OPERATORS"><MudIcon Icon="@KubaIcons.Regular.ArrowLeft" /> All operators</a>
-}
+<BackLink Fallback="@(OperatorId is null ? ClientRoutes.HOME : ClientRoutes.OPERATORS)" Text="@(OperatorId is null ? "Back" : "All operators")" />
 
 <BoardTile Class="tile--flush">
     <div class="toolbar">
         <div class="search">
-            <MudIcon Icon="@KubaIcons.Regular.MagnifyingGlass" />
+            @((MarkupString)KubaIcons.Regular.MagnifyingGlass)
             <input class="kinput" type="search" placeholder="Search by number or name" aria-label="Search contracts" value="@search" @oninput="OnSearchInput" />
         </div>
         @if (OperatorId is null)

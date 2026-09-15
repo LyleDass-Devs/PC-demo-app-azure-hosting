@@ -84,11 +84,11 @@ html,body{overflow-x:clip}
 }
 
 .topbar{height:var(--topbar-h);display:flex;align-items:center;gap:16px;padding:0 28px;position:sticky;top:0;z-index:var(--z-sticky);background:color-mix(in srgb,var(--board) 92%,transparent);backdrop-filter:blur(8px)}
-.topbar__title{font:600 22px/1.2 var(--font);letter-spacing:-.01em;margin:0}
+.topbar__title{font:700 26px/1.2 var(--font);letter-spacing:-.015em;margin:0;color:var(--kuba-indigo)}
 .topbar__title:focus,.topbar__title:focus-visible,h1:focus,h1:focus-visible{outline:none}
 .topbar__spacer{flex:1}
 .avatar{width:36px;height:36px;border-radius:50%;background:var(--kuba-indigo);color:var(--kuba-yellow);display:grid;place-items:center;font:600 12px var(--font);border:0;cursor:pointer}
-@media (max-width:599px){.topbar{padding:0 16px;height:56px}.topbar__title{font-size:18px}}
+@media (max-width:599px){.topbar{padding:0 16px;height:56px}.topbar__title{font-size:20px}}
 .progress-line{position:fixed;top:0;left:0;height:2px;width:100%;z-index:var(--z-notify);background:var(--kuba-indigo);transform-origin:left;transform:scaleX(0);opacity:0;transition:opacity 160ms var(--ease-state)}
 .progress-line.is-active{opacity:1;animation:progress-grow 1.6s var(--ease-state) infinite}
 @keyframes progress-grow{0%{transform:scaleX(0)}60%{transform:scaleX(.7)}100%{transform:scaleX(1);opacity:.6}}
@@ -242,9 +242,12 @@ body:has(.mud-drawer--open){overflow:hidden}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:479px){.field-row{grid-template-columns:1fr}}
 .field__optional{font-weight:400;color:var(--ink-placeholder);font-size:12px;margin-left:6px}
-.backlink{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);text-decoration:none;font-size:13px;margin:0 0 14px;border-radius:4px}
+.backlink{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);text-decoration:none;font:500 13px var(--font);margin:0 0 14px;padding:4px 8px 4px 4px;border-radius:999px;transition:color var(--dur-state) var(--ease-state),background var(--dur-state) var(--ease-state),transform var(--dur-state) var(--ease-state)}
+.backlink svg{transition:transform var(--dur-state) var(--ease-state)}
+.backlink:hover svg{transform:translateX(-3px)}
+.entry__tile .backlink{margin:-6px 0 12px -4px}
 .backlink svg{width:16px;height:16px}
-.backlink:hover{color:var(--kuba-indigo);text-decoration:underline}
+.backlink:hover{color:var(--kuba-indigo);background:var(--board);text-decoration:none}
 .backlink:focus-visible{outline:2px solid var(--kuba-indigo);outline-offset:3px}
 .cell-link{color:var(--kuba-indigo);text-decoration:underline;text-underline-offset:3px;border-radius:3px}
 .cell-link:focus-visible{outline:2px solid var(--kuba-indigo);outline-offset:2px}

@@ -1,4 +1,4 @@
-@page "/me"
+﻿@page "/me"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject ICurrentUserService CurrentUser
 @inject IAccountClientService AccountClient
@@ -11,6 +11,7 @@
 <PageTitle>Me · @App.Title</PageTitle>
 
 <div class="focus-card">
+    <BackLink Fallback="@ClientRoutes.HOME" Text="Back to home" />
     <BoardTile Title="@(user?.FullName ?? string.Empty)" Subtitle="@(user?.EmailAddress)">
         <div class="chips" style="margin:10px 0 18px">
             @if (user is not null)

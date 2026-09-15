@@ -1,9 +1,11 @@
-@page "/catalogue"
+﻿@page "/catalogue"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject PageHeader Header
 @inject NavigationManager Navigation
 
 <PageTitle>Catalogue · KubaPC Admin</PageTitle>
+
+<BackLink Fallback="@ClientRoutes.HOME" />
 
 <div class="ktabs" role="tablist" aria-label="Catalogue sections">
     @foreach (string tab in TABS)

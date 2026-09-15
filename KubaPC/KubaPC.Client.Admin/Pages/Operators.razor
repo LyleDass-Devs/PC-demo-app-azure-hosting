@@ -7,10 +7,12 @@
 
 <PageTitle>Operators · KubaPC Admin</PageTitle>
 
+<BackLink Fallback="@ClientRoutes.HOME" />
+
 <BoardTile Class="tile--flush">
     <div class="toolbar">
         <div class="search">
-            <MudIcon Icon="@KubaIcons.Regular.MagnifyingGlass" />
+            @((MarkupString)KubaIcons.Regular.MagnifyingGlass)
             <input class="kinput" type="search" placeholder="Search by name or company code" aria-label="Search operators" value="@search" @oninput="OnSearchInput" />
         </div>
         <div class="seg" role="group" aria-label="Show">
