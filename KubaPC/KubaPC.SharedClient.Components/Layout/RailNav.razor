@@ -51,6 +51,7 @@
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        CurrentUser.Changed += OnUserChanged;
         user = await CurrentUser.Get();
         visible = Destinations.Where(d => d.IsVisibleTo(user?.Roles ?? new List<string>())).ToList();
         UpdateActiveIndex();
@@ -81,5 +82,15 @@
 
     private Task Toggle() => CollapsedChanged.InvokeAsync(!Collapsed);
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    private void OnUserChanged()
+    {
+        user = CurrentUser.Current;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        CurrentUser.Changed -= OnUserChanged;
+    }
 }

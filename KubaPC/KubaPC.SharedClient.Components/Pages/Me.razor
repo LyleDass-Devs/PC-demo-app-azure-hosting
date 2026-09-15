@@ -1,7 +1,9 @@
-﻿@page "/me"
+@page "/me"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject ICurrentUserService CurrentUser
+@inject IAccountClientService AccountClient
 @inject IAuthenticationClientService Authentication
+@inject INotificationService Notifications
 @inject NavigationManager Navigation
 @inject PageHeader Header
 @inject AppInfo App
@@ -16,7 +18,27 @@
                 foreach (string role in user.Roles) { <span class="chip">@role</span> }
             }
         </div>
+
+        @if (isEditingName)
+        {
+            <form @onsubmit="SaveName" @onsubmit:preventDefault novalidate style="margin-bottom:18px">
+                <div class="status-line" role="alert">@nameError</div>
+                <div class="field">
+                    <label for="own-name">Full name</label>
+                    <input id="own-name" class="kinput @(nameError is not null ? "invalid" : "")" @bind="fullName" autocomplete="name" required autofocus />
+                </div>
+                <div style="display:flex;gap:10px;justify-content:flex-end">
+                    <KubaButton Text="Cancel" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="CancelName" Disabled="busy" />
+                    <KubaButton Type="submit" Text="Save name" Small="true" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+                </div>
+            </form>
+        }
+
         <div style="display:flex;flex-direction:column;gap:10px">
+            @if (!isEditingName)
+            {
+                <KubaButton Text="Edit name" Icon="@KubaIcons.Regular.PencilSimple" Variant="KubaButton.KubaButtonVariant.Ghost" Block="true" OnClick="StartEditName" />
+            }
             <KubaButton Text="Change password" Icon="@KubaIcons.Regular.Key" Variant="KubaButton.KubaButtonVariant.Ghost" Block="true"
                         OnClick="@(() => Navigation.NavigateTo(ClientRoutes.CHANGE_PASSWORD_VOLUNTARY))" />
             <KubaButton Text="Sign out" Icon="@KubaIcons.Regular.SignOut" Variant="KubaButton.KubaButtonVariant.Ghost" Block="true" OnClick="SignOut" />
@@ -26,11 +48,49 @@
 
 @code {
     private CurrentUserResponse? user;
+    private bool isEditingName, busy;
+    private string fullName = string.Empty;
+    private string? nameError;
 
     protected override async Task OnInitializedAsync()
     {
         Header.Set("Me");
         user = await CurrentUser.Get();
+    }
+
+    private void StartEditName()
+    {
+        fullName = user?.FullName ?? string.Empty;
+        nameError = null;
+        isEditingName = true;
+    }
+
+    private void CancelName() => isEditingName = false;
+
+    private async Task SaveName()
+    {
+        nameError = null;
+
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            nameError = "Enter your name.";
+            return;
+        }
+
+        busy = true;
+        var result = await AccountClient.UpdateOwn(new UpdateOwnAccountRequest { FullName = fullName });
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            nameError = result.ValidationErrors.TryGetValue("fullName", out string[]? messages) ? messages.FirstOrDefault() : result.ErrorMessage;
+            return;
+        }
+
+        isEditingName = false;
+        // The rail and the top bar read the cached user, so refresh it rather than wait for the next sign-in.
+        user = await CurrentUser.Refresh();
+        Notifications.Notify(NotificationLevel.Success, "Name updated", user?.FullName);
     }
 
     private async Task SignOut()

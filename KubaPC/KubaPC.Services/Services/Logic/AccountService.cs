@@ -392,6 +392,26 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
+        /// <summary>Changes the display name of the signed-in person. Roles and email stay as they are.</summary>
+        public async Task<AccountOperationResult> UpdateOwnName(Guid accountId, string fullName)
+        {
+            const string sql = @"UPDATE accounts
+                                 SET full_name = @FullName,
+                                     modified_at = now(),
+                                     modified_by = @AccountId
+                                 WHERE id = @AccountId AND is_active";
+
+            int updatedCount = await _dataAccess.ExecuteAsync(sql, new
+            {
+                AccountId = accountId,
+                FullName = fullName.Trim()
+            });
+
+            return updatedCount == 0
+                ? AccountOperationResult.Failure("Your account is no longer active.")
+                : AccountOperationResult.Success();
+        }
+
         public async Task<AccountOperationResult> ResetPassword(Guid accountId, string temporaryPassword, Guid modifiedBy)
         {
 

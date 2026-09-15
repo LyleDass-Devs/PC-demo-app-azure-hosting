@@ -68,6 +68,11 @@ namespace KubaPC.SharedClient.Services.Api
             return await httpService.Post("/accounts/reactivate", new ReactivateAccountRequest { Id = accountId });
         }
 
+        public async Task<ApiResult> UpdateOwn(UpdateOwnAccountRequest request)
+        {
+            return await httpService.Put("/accounts/me", request);
+        }
+
         public async Task<ApiResult> ChangePassword(ChangePasswordRequest request)
         {
             return await httpService.Post("/accounts/change-password", request);

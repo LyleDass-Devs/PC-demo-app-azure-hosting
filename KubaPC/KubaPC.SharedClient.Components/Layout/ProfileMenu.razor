@@ -1,6 +1,7 @@
 ﻿@inject ICurrentUserService CurrentUser
 @inject IAuthenticationClientService Authentication
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
     <ActivatorContent>
@@ -32,13 +33,27 @@
 
     protected override async Task OnInitializedAsync()
     {
-        user = await CurrentUser.Get();
+        CurrentUser.Changed += OnUserChanged;
+        SetUser(await CurrentUser.Get());
+    }
+
+    private void SetUser(CurrentUserResponse? current)
+    {
+        user = current;
 
         initials = string.Concat((user?.FullName ?? string.Empty)
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Take(2)
             .Select(part => char.ToUpperInvariant(part[0])));
     }
+
+    private void OnUserChanged()
+    {
+        SetUser(CurrentUser.Current);
+        StateHasChanged();
+    }
+
+    public void Dispose() => CurrentUser.Changed -= OnUserChanged;
 
     private async Task SignOut()
     {

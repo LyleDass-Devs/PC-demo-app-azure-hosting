@@ -1,4 +1,4 @@
-using KubaPC.Models.Contracts.Accounts.Responses;
+﻿using KubaPC.Models.Contracts.Accounts.Responses;
 using KubaPC.SharedClient.Services.Api;
 using KubaPC.SharedClient.Services.Models;
 
@@ -8,6 +8,10 @@ namespace KubaPC.SharedClient.Services.Users
     {
         private readonly IAccountClientService accountClientService;
         private CurrentUserResponse? cached;
+
+        public event Action? Changed;
+
+        public CurrentUserResponse? Current => cached;
 
         public CurrentUserService(IAccountClientService accountClientService)
         {
@@ -23,12 +27,14 @@ namespace KubaPC.SharedClient.Services.Users
         {
             ApiResult<CurrentUserResponse> result = await accountClientService.GetCurrent();
             cached = result.IsSuccess ? result.Data : null;
+            Changed?.Invoke();
             return cached;
         }
 
         public void Clear()
         {
             cached = null;
+            Changed?.Invoke();
         }
     }
 }
