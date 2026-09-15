@@ -1,0 +1,280 @@
+@page "/contracts/{ContractId:guid}/penalties"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
+@inject IContractClientService ContractClient
+@inject IPenaltyListClientService PenaltyClient
+@inject INotificationService Notifications
+@inject NavigationManager Navigation
+@inject PageHeader Header
+
+<PageTitle>Penalty list · @(contract?.ContractNumber ?? "Contract") · KubaPC Admin</PageTitle>
+
+@if (contractMissing)
+{
+    <div class="stray">
+        <EmptyTile Title="That contract is not on the board" Message="It may have been removed, or the address is wrong." Icon="@KubaIcons.Light.Question">
+            <KubaButton Text="Back to contracts" Icon="@KubaIcons.Regular.ArrowLeft" Small="true" OnClick="@(() => Navigation.NavigateTo(ClientRoutes.CONTRACTS))" />
+        </EmptyTile>
+    </div>
+    return;
+}
+
+@if (contract is not null)
+{
+    <a class="backlink" href="@ClientRoutes.Contracts(contract.OperatorId)"><MudIcon Icon="@KubaIcons.Regular.ArrowLeft" /> @contract.OperatorName contracts</a>
+}
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <div class="search">
+            <MudIcon Icon="@KubaIcons.Regular.MagnifyingGlass" />
+            <input class="kinput" type="search" placeholder="Search by code or description" aria-label="Search penalties" value="@search" @oninput="OnSearchInput" />
+        </div>
+        <div class="seg" role="group" aria-label="Show">
+            <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
+            <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Inactive</button>
+        </div>
+        <span class="toolbar__count">@countLabel</span>
+        @if (contractIsActive)
+        {
+            <KubaButton Text="New penalty" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
+        }
+    </div>
+
+    @if (!contractIsActive)
+    {
+        <p class="readonly-note">This contract is deactivated. Its penalty list is shown for reference.</p>
+    }
+    else if (!isActive)
+    {
+        <p class="readonly-note">Inactive penalties cannot be captured any more. Captures already made keep them.</p>
+    }
+
+    @if (confirmTarget is not null)
+    {
+        <div style="padding:12px 16px 0">
+            <InlineConfirm Message="@($"Deactivate {confirmTarget.PenaltyCode}? It disappears from new captures; the {confirmTarget.CaptureCount} already captured stay as they are.")"
+                           ConfirmText="Deactivate" Busy="confirmBusy" Error="@confirmError" OnConfirm="Deactivate" OnCancel="() => confirmTarget = null" />
+        </div>
+    }
+
+    <MudHidden Breakpoint="Breakpoint.SmAndDown">
+        <MudDataGrid @ref="grid" T="PenaltyListItemResponse" ServerData="LoadServerData" SortMode="SortMode.Single" Dense="true"
+                     RowsPerPage="25" Hover="true" FixedHeader="true" Height="calc(100vh - 300px)" Loading="loading" LoadingProgressColor="Color.Primary">
+            <Columns>
+                <TemplateColumn Title="Code" SortBy="@(x => x.PenaltyCode)" Sortable="true">
+                    <CellTemplate><div class="name">@context.Item.PenaltyCode</div></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Description" SortBy="@(x => x.Description)" Sortable="true">
+                    <CellTemplate>@context.Item.Description</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Type" SortBy="@(x => x.PenaltyType)" Sortable="true">
+                    <CellTemplate><span class="chip">@context.Item.PenaltyType</span></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Amount" SortBy="@(x => x.RandAmount)" Sortable="true" CellClass="num">
+                    <CellTemplate>@(context.Item.RandAmount is decimal amount ? $"R {amount:N2}" : "By formula")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Repeat" Sortable="false">
+                    <CellTemplate>@(context.Item.RepeatPenaltyEscalationEnabled ? "Doubles" : "")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Captures" Sortable="false">
+                    <CellTemplate>@context.Item.CaptureCount</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Status" Sortable="false">
+                    <CellTemplate><StatusChip Kind="@(context.Item.IsActive ? StatusChip.StatusKind.Ok : StatusChip.StatusKind.Off)" Text="@(context.Item.IsActive ? "Active" : "Deactivated")" /></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Sortable="false" CellStyle="width:56px">
+                    <CellTemplate>
+                        @if (contractIsActive)
+                        {
+                            <button class="iconbtn" type="button" aria-label="@($"Actions for {context.Item.PenaltyCode}")" @onclick="e => OpenRowMenu(e, context.Item)">
+                                <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                            </button>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <NoRecordsContent>
+                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No penalties yet" : $"Nothing matches \"{search}\"")" Message="@(string.IsNullOrWhiteSpace(search) && contractIsActive ? "Add the first penalty with New penalty." : null)" Icon="@KubaIcons.Light.WarningCircle">
+                    @if (!string.IsNullOrWhiteSpace(search)) { <KubaButton Text="Clear search" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="ClearSearch" /> }
+                </EmptyTile>
+            </NoRecordsContent>
+            <PagerContent><MudDataGridPager T="PenaltyListItemResponse" PageSizeOptions="new[] { 25, 50, 100 }" /></PagerContent>
+        </MudDataGrid>
+    </MudHidden>
+
+    <MudHidden Breakpoint="Breakpoint.MdAndUp">
+        <div class="tile-list" style="padding:12px">
+            @if (phoneRows.Count == 0 && !loading)
+            {
+                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No penalties yet" : $"Nothing matches \"{search}\"")" Icon="@KubaIcons.Light.WarningCircle" />
+            }
+            @foreach (PenaltyListItemResponse row in phoneRows)
+            {
+                <div class="tile tile-row" @key="row.Id">
+                    <span class="tile__edge" style="--edge-color:@(row.IsActive ? "var(--warn)" : "#C9C7D0")" aria-hidden="true"></span>
+                    <div class="grow">
+                        <div class="name">@row.PenaltyCode · @row.Description</div>
+                        <div class="sub">@row.PenaltyType · @(row.RandAmount is decimal amount ? $"R {amount:N2}" : "By formula")</div>
+                    </div>
+                    @if (contractIsActive)
+                    {
+                        <button class="iconbtn" type="button" aria-label="@($"Actions for {row.PenaltyCode}")" @onclick="e => OpenRowMenu(e, row)">
+                            <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </MudHidden>
+</BoardTile>
+
+<MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
+    <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => drawer?.OpenEdit(menuTarget!)">Edit</MudMenuItem>
+    @if (menuTarget is not null && menuTarget.IsActive)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnAskDeactivate(menuTarget!)">Deactivate</MudMenuItem>
+    }
+    @if (menuTarget is not null && !menuTarget.IsActive)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.UserPlus" OnClick="() => Reactivate(menuTarget!)">Reactivate</MudMenuItem>
+    }
+</MudMenu>
+
+<PenaltyDrawer @ref="drawer" ContractId="ContractId" ContractNumber="@(contract?.ContractNumber ?? "")" Lookups="lookups" OnSaved="Reload" />
+
+@code {
+    [Parameter] public Guid ContractId { get; set; }
+
+    private MudDataGrid<PenaltyListItemResponse>? grid;
+    private PenaltyDrawer? drawer;
+    private MudMenu? rowMenu;
+    private PenaltyListItemResponse? menuTarget;
+    private PenaltyListItemResponse? confirmTarget;
+    private bool confirmBusy;
+    private string? confirmError;
+    private string search = string.Empty;
+    private bool isActive = true;
+    private bool loading;
+    private string countLabel = string.Empty;
+    private ContractListResponse? contract;
+    private bool contractIsActive = true, contractMissing;
+    private PenaltyLookupsResponse lookups = new();
+    private List<PenaltyListItemResponse> phoneRows = new();
+    private System.Threading.Timer? debounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Penalty list");
+
+        var result = await ContractClient.Get(ContractId);
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            contractMissing = true;
+            return;
+        }
+
+        contract = result.Data;
+        contractIsActive = contract.IsActive;
+        Header.Set($"Penalty list · {contract.ContractNumber}");
+
+        var lookupResult = await PenaltyClient.GetLookups();
+        lookups = lookupResult.Data ?? new PenaltyLookupsResponse();
+        await LoadPhoneRows();
+    }
+
+    private PenaltyListItemListRequest BuildRequest(int page, int pageSize, string sortBy, bool descending) => new()
+    {
+        ContractId = ContractId,
+        Page = page,
+        PageSize = pageSize,
+        Search = string.IsNullOrWhiteSpace(search) ? null : search,
+        IsActive = isActive,
+        SortBy = sortBy,
+        SortDescending = descending
+    };
+
+    private async Task<GridData<PenaltyListItemResponse>> LoadServerData(GridState<PenaltyListItemResponse> state, CancellationToken cancellationToken)
+    {
+        loading = true;
+        var sort = state.SortDefinitions.FirstOrDefault();
+        string sortBy = sort is null ? "penaltyCode" : char.ToLowerInvariant(sort.SortBy[0]) + sort.SortBy[1..];
+
+        var result = await PenaltyClient.GetPaged(BuildRequest(state.Page + 1, state.PageSize, sortBy, sort?.Descending ?? false));
+        loading = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not load the penalty list", result.ErrorMessage);
+            countLabel = string.Empty;
+            return new GridData<PenaltyListItemResponse> { Items = Array.Empty<PenaltyListItemResponse>(), TotalItems = 0 };
+        }
+
+        int from = result.Data.ItemCount == 0 ? 0 : (result.Data.Page - 1) * result.Data.PageSize + 1;
+        int to = Math.Min(result.Data.Page * result.Data.PageSize, (int)result.Data.ItemCount);
+        countLabel = result.Data.ItemCount == 0 ? "No penalties" : $"{from} to {to} of {result.Data.ItemCount}";
+
+        return new GridData<PenaltyListItemResponse> { Items = result.Data.Data, TotalItems = (int)result.Data.ItemCount };
+    }
+
+    private async Task LoadPhoneRows()
+    {
+        var result = await PenaltyClient.GetPaged(BuildRequest(1, 100, "penaltyCode", false));
+        phoneRows = result.Data?.Data ?? new List<PenaltyListItemResponse>();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value?.ToString() ?? string.Empty;
+        debounce?.Dispose();
+        debounce = new System.Threading.Timer(_ => InvokeAsync(Reload), null, 300, Timeout.Infinite);
+    }
+
+    private Task ClearSearch() { search = string.Empty; return Reload(); }
+
+    private Task SetActive(bool value) { isActive = value; confirmTarget = null; return Reload(); }
+
+    private async Task Reload()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+        await LoadPhoneRows();
+        StateHasChanged();
+    }
+
+    private async Task OpenRowMenu(MouseEventArgs e, PenaltyListItemResponse item)
+    {
+        menuTarget = item;
+        if (rowMenu is not null) await rowMenu.OpenMenuAsync(e);
+    }
+
+    private void OnAskDeactivate(PenaltyListItemResponse item) { confirmTarget = item; confirmError = null; }
+
+    private async Task Deactivate()
+    {
+        if (confirmTarget is null) return;
+        confirmBusy = true;
+        var result = await PenaltyClient.Deactivate(confirmTarget.Id);
+        confirmBusy = false;
+
+        if (!result.IsSuccess) { confirmError = result.ErrorMessage; return; }
+
+        string code = confirmTarget.PenaltyCode;
+        confirmTarget = null;
+        Notifications.Notify(NotificationLevel.Success, $"{code} deactivated", null, new NotificationAction("View inactive", () => SetActive(false)));
+        await Reload();
+    }
+
+    private async Task Reactivate(PenaltyListItemResponse item)
+    {
+        var result = await PenaltyClient.Reactivate(item.Id);
+
+        if (!result.IsSuccess)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not reactivate", result.ErrorMessage);
+            return;
+        }
+
+        Notifications.Notify(NotificationLevel.Success, $"{item.PenaltyCode} reactivated", null, new NotificationAction("View active", () => SetActive(true)));
+        await Reload();
+    }
+}

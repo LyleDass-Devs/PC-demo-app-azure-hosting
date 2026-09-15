@@ -1,0 +1,172 @@
+@inject IPenaltyListClientService PenaltyClient
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(520px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <div class="kdrawer__head">
+            <h2>@(isEdit ? "Edit penalty" : "New penalty")</h2>
+            <button class="iconbtn kdrawer__close" type="button" aria-label="Close" @onclick="Close" disabled="@busy"><MudIcon Icon="@KubaIcons.Regular.X" /></button>
+        </div>
+        <p class="lede">@(isEdit ? "Existing captures keep the values they were priced at." : $"A penalty that can be captured against contract {ContractNumber}.")</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            <div class="field-row">
+                <div class="field">
+                    <label for="penalty-code">Code</label>
+                    <input id="penalty-code" class="kinput @Invalid("penaltyCode")" @bind="penaltyCode" autocomplete="off" spellcheck="false" placeholder="TNO-1" required />
+                    @if (FieldError("penaltyCode") is string e1) { <span class="field__error">@e1</span> }
+                </div>
+                <div class="field">
+                    <label for="penalty-type">Type</label>
+                    <select id="penalty-type" class="kinput kselect @Invalid("penaltyType")" @bind="penaltyType">
+                        <option value="">Choose a type</option>
+                        @foreach (PenaltyTypeResponse type in Lookups.PenaltyTypes)
+                        {
+                            <option value="@type.Value">@type.Value</option>
+                        }
+                    </select>
+                    @if (FieldError("penaltyType") is string e2) { <span class="field__error">@e2</span> }
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="penalty-description">Description</label>
+                <input id="penalty-description" class="kinput @Invalid("description")" @bind="description" autocomplete="off" required />
+                @if (FieldError("description") is string e3) { <span class="field__error">@e3</span> }
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="penalty-amount">Fixed amount, rands <span class="field__optional">optional</span></label>
+                    <input id="penalty-amount" class="kinput @Invalid("randAmount")" type="number" step="0.01" min="0" inputmode="decimal" @bind="randAmount" placeholder="4000.00" />
+                    @if (FieldError("randAmount") is string e4) { <span class="field__error">@e4</span> }
+                </div>
+                <div class="field">
+                    <label for="revenue-type">Revenue type <span class="field__optional">optional</span></label>
+                    <select id="revenue-type" class="kinput kselect" @bind="revenueType">
+                        <option value="">Not set</option>
+                        @foreach (string revenue in Lookups.RevenueTypes)
+                        {
+                            <option value="@revenue">@revenue</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="penalty-formula">Formula <span class="field__optional">optional</span></label>
+                <input id="penalty-formula" class="kinput @Invalid("penaltyFormula")" @bind="penaltyFormula" autocomplete="off" placeholder="R500 x number of days late" />
+                <span class="field__hint">Free text for penalties priced by hand. Give an amount, a formula, or both.</span>
+                @if (FieldError("penaltyFormula") is string e5) { <span class="field__error">@e5</span> }
+            </div>
+
+            <label class="check">
+                <input type="checkbox" @bind="repeatEscalation" />
+                <span>
+                    <b>Doubles on repeat</b>
+                    <small>From the third consecutive month of the same @(ScopeWord) this penalty charges twice its amount.</small>
+                </span>
+            </label>
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Add penalty")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter, EditorRequired] public Guid ContractId { get; set; }
+    [Parameter] public string ContractNumber { get; set; } = string.Empty;
+    [Parameter] public PenaltyLookupsResponse Lookups { get; set; } = new();
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool open, isEdit, busy, repeatEscalation;
+    private Guid editingId;
+    private string penaltyCode = string.Empty, description = string.Empty, penaltyType = string.Empty, revenueType = string.Empty;
+    private string? penaltyFormula;
+    private decimal? randAmount;
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    // The counting scope comes from the chosen type: trip, vehicle or contract.
+    private string ScopeWord => Lookups.PenaltyTypes.FirstOrDefault(t => t.Value == penaltyType)?.EscalationCountingScope.ToLowerInvariant() ?? "trip, vehicle or contract";
+
+    public void OpenCreate()
+    {
+        Reset();
+        isEdit = false;
+        open = true;
+        StateHasChanged();
+    }
+
+    public void OpenEdit(PenaltyListItemResponse item)
+    {
+        Reset();
+        isEdit = true;
+        editingId = item.Id;
+        penaltyCode = item.PenaltyCode;
+        description = item.Description;
+        penaltyType = item.PenaltyType;
+        revenueType = item.RevenueType ?? string.Empty;
+        randAmount = item.RandAmount;
+        penaltyFormula = item.PenaltyFormula;
+        repeatEscalation = item.RepeatPenaltyEscalationEnabled;
+        open = true;
+        StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        penaltyCode = description = penaltyType = revenueType = string.Empty;
+        penaltyFormula = null;
+        randAmount = null;
+        repeatEscalation = false;
+        busy = false;
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private string Invalid(string field) => FieldError(field) is null ? string.Empty : "invalid";
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        var result = isEdit
+            ? await PenaltyClient.Update(new UpdatePenaltyListItemRequest
+            {
+                Id = editingId, PenaltyCode = penaltyCode, Description = description, PenaltyType = penaltyType,
+                RevenueType = string.IsNullOrEmpty(revenueType) ? null : revenueType, RandAmount = randAmount,
+                PenaltyFormula = penaltyFormula, RepeatPenaltyEscalationEnabled = repeatEscalation
+            })
+            : (await PenaltyClient.Create(new CreatePenaltyListItemRequest
+            {
+                ContractId = ContractId, PenaltyCode = penaltyCode, Description = description, PenaltyType = penaltyType,
+                RevenueType = string.IsNullOrEmpty(revenueType) ? null : revenueType, RandAmount = randAmount,
+                PenaltyFormula = penaltyFormula, RepeatPenaltyEscalationEnabled = repeatEscalation
+            })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Penalty updated" : "Penalty added", $"{penaltyCode} · {description}");
+        await OnSaved.InvokeAsync();
+    }
+}
