@@ -73,7 +73,7 @@
                      RowsPerPage="25" Hover="true" FixedHeader="true" Height="calc(100vh - 300px)" Loading="loading" LoadingProgressColor="Color.Primary">
             <Columns>
                 <TemplateColumn Title="Contract" SortBy="@(x => x.ContractNumber)" Sortable="true">
-                    <CellTemplate><div class="name">@context.Item.ContractNumber</div><div class="email">@(context.Item.ContractName ?? "")</div></CellTemplate>
+                    <CellTemplate><div class="name"><a class="cell-link" href="@ClientRoutes.PenaltyList(context.Item.Id)">@context.Item.ContractNumber</a></div><div class="email">@(context.Item.ContractName ?? "")</div></CellTemplate>
                 </TemplateColumn>
                 @if (OperatorId is null)
                 {
@@ -147,6 +147,7 @@
 
 <MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
     <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => drawer?.OpenEdit(menuTarget!)">Edit</MudMenuItem>
+    <MudMenuItem Icon="@KubaIcons.Regular.WarningCircle" OnClick="() => Navigation.NavigateTo(ClientRoutes.PenaltyList(menuTarget!.Id))">Penalty list</MudMenuItem>
     @if (menuTarget is not null && menuTarget.IsActive)
     {
         <MudMenuItem Icon="@KubaIcons.Regular.UserMinus" OnClick="() => OnAskDeactivate(menuTarget!)">Deactivate</MudMenuItem>
