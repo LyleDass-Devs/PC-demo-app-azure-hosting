@@ -25,6 +25,11 @@ namespace KubaPC.SharedClient.Services.Api
             return await httpService.Get<ContractListResponse>($"/contracts/{contractId}");
         }
 
+        public async Task<ApiResult<List<DropDownResponse>>> GetDropDown(Guid? operatorId)
+        {
+            return await httpService.Get<List<DropDownResponse>>($"/contracts/dropdown{(operatorId is null ? "" : $"?operatorId={operatorId}")}");
+        }
+
         public async Task<ApiResult<Guid>> Create(CreateContractRequest request)
         {
             return await httpService.Post<Guid>("/contracts/create", request);

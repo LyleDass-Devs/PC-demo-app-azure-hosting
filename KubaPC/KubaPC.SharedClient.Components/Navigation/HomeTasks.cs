@@ -29,7 +29,7 @@ namespace KubaPC.SharedClient.Components.Navigation
             new HomeTask("Forms", "Forms A, B&H, C, D, E, F1 and G for the selected certificate.", ClientRoutes.ComingSoon("forms"), KubaIcons.Regular.ClipboardText, "var(--info)", WORKFLOW_ROLES),
             new HomeTask("Vehicles", "Record a breakdown or damage with photos.", ClientRoutes.ComingSoon("vehicles"), KubaIcons.Regular.Bus, "var(--ok)", App: KubaApp.Operator),
             new HomeTask("Shifts", "See today's duties and report a trip that did not run.", ClientRoutes.ComingSoon("shifts"), KubaIcons.Regular.Clock, "var(--info)", App: KubaApp.Operator),
-            new HomeTask("Catalogue and rates", "Penalty list items, contract rates, escalation parameters.", ClientRoutes.ComingSoon("catalogue"), KubaIcons.Regular.Gear, "var(--kuba-indigo)", ADMIN_ROLES, KubaApp.Admin),
+            new HomeTask("Catalogue and rates", "Penalty list items, contract rates, escalation parameters.", ClientRoutes.CATALOGUE, KubaIcons.Regular.Gear, "var(--kuba-indigo)", ADMIN_ROLES, KubaApp.Admin),
             new HomeTask("Operators", "Bus companies, their company codes and contracts.", ClientRoutes.OPERATORS, KubaIcons.Regular.Bus, "var(--kuba-indigo)", ADMIN_ROLES, KubaApp.Admin),
             new HomeTask("Contracts", "Every contract across operators, with dates and bank details.", ClientRoutes.CONTRACTS, KubaIcons.Regular.ClipboardText, "var(--info)", ADMIN_ROLES, KubaApp.Admin),
             new HomeTask("Accounts", "Create sign-ins, set roles, deactivate leavers.", ClientRoutes.ACCOUNTS, KubaIcons.Regular.Users, "var(--kuba-indigo)", ADMIN_ROLES, KubaApp.Admin),

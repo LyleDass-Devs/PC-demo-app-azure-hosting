@@ -16,7 +16,9 @@ namespace KubaPC.Services.Services.Logic
             ["penaltyCode"] = "p.penalty_code",
             ["description"] = "p.description",
             ["penaltyType"] = "p.penalty_type",
-            ["randAmount"] = "p.rand_amount_minor"
+            ["randAmount"] = "p.rand_amount_minor",
+            ["contractNumber"] = "c.contract_number",
+            ["operatorName"] = "o.operator_name"
         };
 
         // Script 009 makes the money catalogues read-only for the application role. A write elevates
@@ -33,12 +35,15 @@ namespace KubaPC.Services.Services.Logic
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mappedColumn) ? mappedColumn : "p.penalty_code";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
 
-            string sql = $@"SELECT p.id, p.contract_id, p.penalty_code, p.description, p.penalty_type, p.revenue_type,
+            string sql = $@"SELECT p.id, p.contract_id, c.contract_number, c.operator_id, o.operator_name, p.penalty_code, p.description, p.penalty_type, p.revenue_type,
                                    p.rand_amount_minor, p.penalty_formula, p.repeat_penalty_escalation_enabled, p.is_active,
-                                   (SELECT count(*) FROM penalty_captures c WHERE c.penalty_list_item_id = p.id) AS capture_count,
+                                   (SELECT count(*) FROM penalty_captures pc WHERE pc.penalty_list_item_id = p.id) AS capture_count,
                                    count(*) OVER() AS total_count
                             FROM penalty_list_items p
-                            WHERE p.contract_id = @ContractId
+                            JOIN contracts c ON c.id = p.contract_id
+                            JOIN operators o ON o.id = c.operator_id
+                            WHERE (@ContractId IS NULL OR p.contract_id = @ContractId)
+                              AND (@OperatorId IS NULL OR c.operator_id = @OperatorId)
                               AND (@Search IS NULL OR p.penalty_code ILIKE @SearchPattern OR p.description ILIKE @SearchPattern)
                               AND (@IsActive IS NULL OR p.is_active = @IsActive)
                             ORDER BY {sortColumn} {sortDirection}
@@ -46,6 +51,7 @@ namespace KubaPC.Services.Services.Logic
 
             DynamicParameters parameters = new();
             parameters.Add("ContractId", request.ContractId, DbType.Guid);
+            parameters.Add("OperatorId", request.OperatorId, DbType.Guid);
             parameters.Add("Search", request.Search, DbType.String);
             parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
@@ -66,6 +72,9 @@ namespace KubaPC.Services.Services.Logic
                 {
                     Id = row.Id,
                     ContractId = row.ContractId,
+                    ContractNumber = row.ContractNumber,
+                    OperatorId = row.OperatorId,
+                    OperatorName = row.OperatorName,
                     PenaltyCode = row.PenaltyCode,
                     Description = row.Description,
                     PenaltyType = row.PenaltyType,

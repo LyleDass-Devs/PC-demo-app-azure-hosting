@@ -1,27 +1,7 @@
-@page "/contracts/{ContractId:guid}/penalties"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
+﻿@inject IOperatorClientService OperatorClient
 @inject IContractClientService ContractClient
 @inject IPenaltyListClientService PenaltyClient
 @inject INotificationService Notifications
-@inject NavigationManager Navigation
-@inject PageHeader Header
-
-<PageTitle>Penalty list · @(contract?.ContractNumber ?? "Contract") · KubaPC Admin</PageTitle>
-
-@if (contractMissing)
-{
-    <div class="stray">
-        <EmptyTile Title="That contract is not on the board" Message="It may have been removed, or the address is wrong." Icon="@KubaIcons.Light.Question">
-            <KubaButton Text="Back to contracts" Icon="@KubaIcons.Regular.ArrowLeft" Small="true" OnClick="@(() => Navigation.NavigateTo(ClientRoutes.CONTRACTS))" />
-        </EmptyTile>
-    </div>
-    return;
-}
-
-@if (contract is not null)
-{
-    <a class="backlink" href="@ClientRoutes.Contracts(contract.OperatorId)"><MudIcon Icon="@KubaIcons.Regular.ArrowLeft" /> @contract.OperatorName contracts</a>
-}
 
 <BoardTile Class="tile--flush">
     <div class="toolbar">
@@ -29,22 +9,29 @@
             <MudIcon Icon="@KubaIcons.Regular.MagnifyingGlass" />
             <input class="kinput" type="search" placeholder="Search by code or description" aria-label="Search penalties" value="@search" @oninput="OnSearchInput" />
         </div>
+        <select class="kinput kselect" aria-label="Operator" @onchange="OnOperatorFilter">
+            <option value="">All operators</option>
+            @foreach (DropDownResponse item in operators)
+            {
+                <option value="@item.Id" selected="@(item.Id == operatorId)">@item.Value</option>
+            }
+        </select>
+        <select class="kinput kselect" aria-label="Contract" @onchange="OnContractFilter">
+            <option value="">All contracts</option>
+            @foreach (DropDownResponse item in contracts)
+            {
+                <option value="@item.Id" selected="@(item.Id == contractId)">@item.Value</option>
+            }
+        </select>
         <div class="seg" role="group" aria-label="Show">
             <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
             <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Inactive</button>
         </div>
         <span class="toolbar__count">@countLabel</span>
-        @if (contractIsActive)
-        {
-            <KubaButton Text="New penalty" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
-        }
+        <KubaButton Text="New penalty" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
     </div>
 
-    @if (!contractIsActive)
-    {
-        <p class="readonly-note">This contract is deactivated. Its penalty list is shown for reference.</p>
-    }
-    else if (!isActive)
+    @if (!isActive)
     {
         <p class="readonly-note">Inactive penalties cannot be captured any more. Captures already made keep them.</p>
     }
@@ -52,17 +39,21 @@
     @if (confirmTarget is not null)
     {
         <div style="padding:12px 16px 0">
-            <InlineConfirm Message="@($"Deactivate {confirmTarget.PenaltyCode}? It disappears from new captures; the {confirmTarget.CaptureCount} already captured stay as they are.")"
+            <InlineConfirm Message="@($"Deactivate {confirmTarget.PenaltyCode} on {confirmTarget.ContractNumber}? It disappears from new captures; the {confirmTarget.CaptureCount} already captured stay as they are.")"
                            ConfirmText="Deactivate" Busy="confirmBusy" Error="@confirmError" OnConfirm="Deactivate" OnCancel="() => confirmTarget = null" />
         </div>
     }
 
     <MudHidden Breakpoint="Breakpoint.SmAndDown">
         <MudDataGrid @ref="grid" T="PenaltyListItemResponse" ServerData="LoadServerData" SortMode="SortMode.Single" Dense="true"
-                     RowsPerPage="25" Hover="true" FixedHeader="true" Height="calc(100vh - 300px)" Loading="loading" LoadingProgressColor="Color.Primary">
+                     RowsPerPage="25" Hover="true" FixedHeader="true" Height="calc(100vh - 320px)" Loading="loading" LoadingProgressColor="Color.Primary">
             <Columns>
                 <TemplateColumn Title="Code" SortBy="@(x => x.PenaltyCode)" Sortable="true">
                     <CellTemplate><div class="name">@context.Item.PenaltyCode</div></CellTemplate>
+                </TemplateColumn>
+                @* Hidden rather than conditional: a column added later lands at the end of the grid. *@
+                <TemplateColumn Title="Contract" SortBy="@(x => x.ContractNumber)" Sortable="true" Hidden="@(contractId is not null)">
+                    <CellTemplate><div class="name">@context.Item.ContractNumber</div><div class="email">@context.Item.OperatorName</div></CellTemplate>
                 </TemplateColumn>
                 <TemplateColumn Title="Description" SortBy="@(x => x.Description)" Sortable="true">
                     <CellTemplate>@context.Item.Description</CellTemplate>
@@ -84,17 +75,14 @@
                 </TemplateColumn>
                 <TemplateColumn Sortable="false" CellStyle="width:56px">
                     <CellTemplate>
-                        @if (contractIsActive)
-                        {
-                            <button class="iconbtn" type="button" aria-label="@($"Actions for {context.Item.PenaltyCode}")" @onclick="e => OpenRowMenu(e, context.Item)">
-                                <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
-                            </button>
-                        }
+                        <button class="iconbtn" type="button" aria-label="@($"Actions for {context.Item.PenaltyCode}")" @onclick="e => OpenRowMenu(e, context.Item)">
+                            <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                        </button>
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
             <NoRecordsContent>
-                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No penalties yet" : $"Nothing matches \"{search}\"")" Message="@(string.IsNullOrWhiteSpace(search) && contractIsActive ? "Add the first penalty with New penalty." : null)" Icon="@KubaIcons.Light.WarningCircle">
+                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No penalties yet" : $"Nothing matches \"{search}\"")" Message="@(string.IsNullOrWhiteSpace(search) ? "Add the first penalty with New penalty." : null)" Icon="@KubaIcons.Light.WarningCircle">
                     @if (!string.IsNullOrWhiteSpace(search)) { <KubaButton Text="Clear search" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="ClearSearch" /> }
                 </EmptyTile>
             </NoRecordsContent>
@@ -114,14 +102,11 @@
                     <span class="tile__edge" style="--edge-color:@(row.IsActive ? "var(--warn)" : "#C9C7D0")" aria-hidden="true"></span>
                     <div class="grow">
                         <div class="name">@row.PenaltyCode · @row.Description</div>
-                        <div class="sub">@row.PenaltyType · @(row.RandAmount is decimal amount ? $"R {amount:N2}" : "By formula")</div>
+                        <div class="sub">@row.ContractNumber · @row.PenaltyType · @(row.RandAmount is decimal amount ? $"R {amount:N2}" : "By formula")</div>
                     </div>
-                    @if (contractIsActive)
-                    {
-                        <button class="iconbtn" type="button" aria-label="@($"Actions for {row.PenaltyCode}")" @onclick="e => OpenRowMenu(e, row)">
-                            <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
-                        </button>
-                    }
+                    <button class="iconbtn" type="button" aria-label="@($"Actions for {row.PenaltyCode}")" @onclick="e => OpenRowMenu(e, row)">
+                        <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                    </button>
                 </div>
             }
         </div>
@@ -140,10 +125,10 @@
     }
 </MudMenu>
 
-<PenaltyDrawer @ref="drawer" ContractId="ContractId" ContractNumber="@(contract?.ContractNumber ?? "")" Lookups="lookups" OnSaved="Reload" />
+<PenaltyDrawer @ref="drawer" ContractId="contractId" Contracts="contracts" Lookups="lookups" OnSaved="Reload" />
 
 @code {
-    [Parameter] public Guid ContractId { get; set; }
+    [Parameter] public Guid? ContractId { get; set; }
 
     private MudDataGrid<PenaltyListItemResponse>? grid;
     private PenaltyDrawer? drawer;
@@ -156,36 +141,30 @@
     private bool isActive = true;
     private bool loading;
     private string countLabel = string.Empty;
-    private ContractListResponse? contract;
-    private bool contractIsActive = true, contractMissing;
+    private Guid? operatorId, contractId;
+    private List<DropDownResponse> operators = new(), contracts = new();
     private PenaltyLookupsResponse lookups = new();
     private List<PenaltyListItemResponse> phoneRows = new();
     private System.Threading.Timer? debounce;
 
     protected override async Task OnInitializedAsync()
     {
-        Header.Set("Penalty list");
-
-        var result = await ContractClient.Get(ContractId);
-
-        if (!result.IsSuccess || result.Data is null)
-        {
-            contractMissing = true;
-            return;
-        }
-
-        contract = result.Data;
-        contractIsActive = contract.IsActive;
-        Header.Set($"Penalty list · {contract.ContractNumber}");
-
-        var lookupResult = await PenaltyClient.GetLookups();
-        lookups = lookupResult.Data ?? new PenaltyLookupsResponse();
+        contractId = ContractId;
+        operators = (await OperatorClient.GetDropDown()).Data ?? new List<DropDownResponse>();
+        lookups = (await PenaltyClient.GetLookups()).Data ?? new PenaltyLookupsResponse();
+        await LoadContracts();
         await LoadPhoneRows();
+    }
+
+    private async Task LoadContracts()
+    {
+        contracts = (await ContractClient.GetDropDown(operatorId)).Data ?? new List<DropDownResponse>();
     }
 
     private PenaltyListItemListRequest BuildRequest(int page, int pageSize, string sortBy, bool descending) => new()
     {
-        ContractId = ContractId,
+        ContractId = contractId,
+        OperatorId = operatorId,
         Page = page,
         PageSize = pageSize,
         Search = string.IsNullOrWhiteSpace(search) ? null : search,
@@ -228,6 +207,20 @@
         search = e.Value?.ToString() ?? string.Empty;
         debounce?.Dispose();
         debounce = new System.Threading.Timer(_ => InvokeAsync(Reload), null, 300, Timeout.Infinite);
+    }
+
+    private async Task OnOperatorFilter(ChangeEventArgs e)
+    {
+        operatorId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        contractId = null;
+        await LoadContracts();
+        await Reload();
+    }
+
+    private Task OnContractFilter(ChangeEventArgs e)
+    {
+        contractId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        return Reload();
     }
 
     private Task ClearSearch() { search = string.Empty; return Reload(); }

@@ -9,6 +9,7 @@ namespace KubaPC.SharedClient.Services.Api
     {
         Task<ApiResult<PagedResponse<ContractListResponse>>> GetPaged(ContractListRequest request);
         Task<ApiResult<ContractListResponse>> Get(Guid contractId);
+        Task<ApiResult<List<DropDownResponse>>> GetDropDown(Guid? operatorId);
         Task<ApiResult<Guid>> Create(CreateContractRequest request);
         Task<ApiResult> Update(UpdateContractRequest request);
         Task<ApiResult> Deactivate(Guid contractId);

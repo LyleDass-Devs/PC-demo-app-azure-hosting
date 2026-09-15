@@ -236,6 +236,11 @@ body:has(.mud-drawer--open){overflow:hidden}
 .check b{display:block;font-weight:600;font-size:14px}
 .check small{display:block;color:var(--ink-2);font-size:12px;line-height:1.4;margin-top:2px}
 .num{font-variant-numeric:tabular-nums;text-align:right}
+.ktabs{display:flex;gap:4px;margin:0 0 16px;border-bottom:1px solid var(--tile-edge);overflow-x:auto;scrollbar-width:none}
+.ktabs button{appearance:none;border:0;background:none;font:500 14px var(--font);color:var(--ink-2);padding:10px 14px;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap;border-radius:6px 6px 0 0}
+.ktabs button:hover{color:var(--ink);background:var(--board)}
+.ktabs button[aria-selected="true"]{color:var(--kuba-indigo);border-bottom-color:var(--kuba-yellow);font-weight:600}
+.ktabs button:focus-visible{outline:2px solid var(--kuba-indigo);outline-offset:-2px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:479px){.field-row{grid-template-columns:1fr}}
 .field__optional{font-weight:400;color:var(--ink-placeholder);font-size:12px;margin-left:6px}

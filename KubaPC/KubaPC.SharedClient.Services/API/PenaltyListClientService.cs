@@ -17,7 +17,7 @@ namespace KubaPC.SharedClient.Services.Api
 
         public async Task<ApiResult<PagedResponse<PenaltyListItemResponse>>> GetPaged(PenaltyListItemListRequest request)
         {
-            return await httpService.Get<PagedResponse<PenaltyListItemResponse>>($"/penalty-list?contractId={request.ContractId}&{PagedQuery.From(request)}");
+            return await httpService.Get<PagedResponse<PenaltyListItemResponse>>($"/penalty-list?{PagedQuery.From(request)}{(request.ContractId is null ? "" : $"&contractId={request.ContractId}")}{(request.OperatorId is null ? "" : $"&operatorId={request.OperatorId}")}");
         }
 
         public async Task<ApiResult<PenaltyLookupsResponse>> GetLookups()

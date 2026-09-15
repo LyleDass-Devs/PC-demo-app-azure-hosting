@@ -112,6 +112,20 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
+        public async Task<List<DropDownResponse>> SelectDropDown(Guid? operatorId)
+        {
+            const string sql = @"SELECT c.id, c.contract_number || ' - ' || o.operator_name AS value
+                                 FROM contracts c
+                                 JOIN operators o ON o.id = c.operator_id AND o.is_active
+                                 WHERE c.is_active AND (@OperatorId IS NULL OR c.operator_id = @OperatorId)
+                                 ORDER BY o.operator_name, c.contract_number";
+
+            DynamicParameters parameters = new();
+            parameters.Add("OperatorId", operatorId, DbType.Guid);
+
+            return await _dataAccess.QueryAsync<DropDownResponse>(sql, parameters);
+        }
+
         public async Task<CreateResult> CreateContract(CreateContractRequest request, Guid createdBy)
         {
             const string operatorSql = @"SELECT count(*) FROM operators WHERE id = @OperatorId AND is_active";

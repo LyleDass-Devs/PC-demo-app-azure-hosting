@@ -4,6 +4,9 @@
     {
         public Guid Id { get; set; }
         public Guid ContractId { get; set; }
+        public string ContractNumber { get; set; } = string.Empty;
+        public Guid OperatorId { get; set; }
+        public string OperatorName { get; set; } = string.Empty;
         public string PenaltyCode { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string PenaltyType { get; set; } = string.Empty;

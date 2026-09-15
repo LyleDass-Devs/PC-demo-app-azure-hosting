@@ -8,7 +8,7 @@ namespace KubaPC.API.Validators.Penalties
     {
         public CreatePenaltyListItemValidator()
         {
-            RuleFor(x => x.ContractId).NotEmpty();
+            RuleFor(x => x.ContractId).NotEmpty().WithMessage("Choose a contract.");
             RuleFor(x => x.PenaltyCode).NotEmpty().WithMessage("Enter the penalty code.").MaximumLength(50);
             RuleFor(x => x.Description).NotEmpty().WithMessage("Enter a description.").MaximumLength(500);
             RuleFor(x => x.PenaltyType).NotEmpty().WithMessage("Choose a penalty type.");

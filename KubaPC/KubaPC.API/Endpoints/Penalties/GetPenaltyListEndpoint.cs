@@ -31,7 +31,7 @@ namespace KubaPC.API.Endpoints.Penalties
             }
             catch (Exception exception)
             {
-                Logger.LogError(exception, "Get penalty list failed for contract {ContractId}", request.ContractId);
+                Logger.LogError(exception, "Get penalty list failed");
                 await Send.ErrorsAsync(500, ct);
             }
         }

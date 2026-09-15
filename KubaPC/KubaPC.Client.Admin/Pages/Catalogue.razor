@@ -1,0 +1,47 @@
+@page "/catalogue"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
+@inject PageHeader Header
+@inject NavigationManager Navigation
+
+<PageTitle>Catalogue · KubaPC Admin</PageTitle>
+
+<div class="ktabs" role="tablist" aria-label="Catalogue sections">
+    @foreach (string tab in TABS)
+    {
+        <button type="button" role="tab" aria-selected="@(tab == activeTab ? "true" : "false")" @onclick="() => SelectTab(tab)">@tab</button>
+    }
+</div>
+
+@if (activeTab == PENALTY_LISTS)
+{
+    <PenaltyListBoard ContractId="ContractId" />
+}
+else
+{
+    <div class="stray">
+        <EmptyTile Title="@($"{activeTab} arrive next")" Message="This section is not built yet. Penalty lists are live; the others follow one at a time." Icon="@KubaIcons.Light.Gear" />
+    </div>
+}
+
+@code {
+    private const string PENALTY_LISTS = "Penalty lists";
+    private static readonly string[] TABS = { PENALTY_LISTS, "Escalation parameters", "DNO reasons", "Reference URLs", "Income fields" };
+
+    [SupplyParameterFromQuery] public Guid? ContractId { get; set; }
+    [SupplyParameterFromQuery] public string? Tab { get; set; }
+
+    private string activeTab = PENALTY_LISTS;
+
+    protected override void OnInitialized()
+    {
+        Header.Set("Catalogue");
+        activeTab = TABS.FirstOrDefault(t => string.Equals(t, Tab, StringComparison.OrdinalIgnoreCase)) ?? PENALTY_LISTS;
+    }
+
+    // The tab lives in the address so a link can open a section directly and the back button works.
+    private void SelectTab(string tab)
+    {
+        activeTab = tab;
+        Navigation.NavigateTo(tab == PENALTY_LISTS ? ClientRoutes.CATALOGUE : $"{ClientRoutes.CATALOGUE}?tab={Uri.EscapeDataString(tab)}", replace: true);
+    }
+}

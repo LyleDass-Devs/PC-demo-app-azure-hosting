@@ -6,9 +6,5 @@ namespace KubaPC.API.Validators.Penalties
 {
     public class PenaltyListItemListValidator : PagedListValidator<PenaltyListItemListRequest>
     {
-        public PenaltyListItemListValidator()
-        {
-            RuleFor(x => x.ContractId).NotEmpty();
-        }
     }
 }
