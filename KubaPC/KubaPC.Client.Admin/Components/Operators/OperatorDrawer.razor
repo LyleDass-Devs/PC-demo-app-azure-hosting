@@ -1,0 +1,96 @@
+@inject IOperatorClientService OperatorClient
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(480px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <h2>@(isEdit ? "Edit operator" : "New operator")</h2>
+        <p class="lede">@(isEdit ? "Rename the company or correct its code." : "A bus company that holds a contract. The company code must match the SAEIV feed.")</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            <div class="field">
+                <label for="operator-name">Operator name</label>
+                <input id="operator-name" class="kinput @(FieldError("operatorName") is not null ? "invalid" : "")" @bind="operatorName" autocomplete="organization" required />
+                @if (FieldError("operatorName") is string ne) { <span class="field__error">@ne</span> }
+            </div>
+
+            <div class="field">
+                <label for="id-societe">Company code</label>
+                <input id="id-societe" class="kinput @(FieldError("idSociete") is not null ? "invalid" : "")" @bind="idSociete" autocomplete="off" spellcheck="false" required />
+                <span class="field__hint">Exactly as it appears in the SAEIV export.</span>
+                @if (FieldError("idSociete") is string ce) { <span class="field__error">@ce</span> }
+            </div>
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Add operator")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool open, isEdit, busy;
+    private Guid editingId;
+    private string operatorName = string.Empty, idSociete = string.Empty;
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    public void OpenCreate()
+    {
+        Reset();
+        isEdit = false;
+        open = true;
+        StateHasChanged();
+    }
+
+    public void OpenEdit(OperatorListResponse item)
+    {
+        Reset();
+        isEdit = true;
+        editingId = item.Id;
+        operatorName = item.OperatorName;
+        idSociete = item.IdSociete;
+        open = true;
+        StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        operatorName = idSociete = string.Empty;
+        busy = false;
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        var result = isEdit
+            ? await OperatorClient.Update(new UpdateOperatorRequest { Id = editingId, OperatorName = operatorName, IdSociete = idSociete })
+            : (await OperatorClient.Create(new CreateOperatorRequest { OperatorName = operatorName, IdSociete = idSociete })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Operator updated" : "Operator added", operatorName);
+        await OnSaved.InvokeAsync();
+    }
+}
