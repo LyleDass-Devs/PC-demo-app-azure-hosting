@@ -3,53 +3,83 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject PageHeader Header
 @inject NavigationManager Navigation
+@inject IJSRuntime JavaScript
 
 <PageTitle>Catalogue · KubaPC Admin</PageTitle>
 
 <BackLink Fallback="@ClientRoutes.HOME" />
 
-<div class="ktabs" role="tablist" aria-label="Catalogue sections">
-    @foreach (string tab in TABS)
+<nav class="sections on-indigo" role="tablist" aria-label="Catalogue sections" style="@($"--section-count:{SECTIONS.Length};--active-index:{activeIndex}")">
+    <span class="sections__marker" aria-hidden="true"></span>
+    @for (int i = 0; i < SECTIONS.Length; i++)
     {
-        <button type="button" role="tab" aria-selected="@(tab == activeTab ? "true" : "false")" @onclick="() => SelectTab(tab)">@tab</button>
+        Section section = SECTIONS[i];
+        int index = i;
+        <button type="button" role="tab" class="sections__item" aria-selected="@(index == activeIndex ? "true" : "false")" @onclick="() => SelectTab(index)">
+            @((MarkupString)section.Icon)
+            <span class="sections__label">@section.Label</span>
+            @if (!section.IsLive)
+            {
+                <span class="sections__soon">soon</span>
+            }
+        </button>
     }
-</div>
+</nav>
 
-@if (activeTab == PENALTY_LISTS)
+@if (Active.Label == PENALTY_LISTS)
 {
     <PenaltyListBoard ContractId="ContractId" />
 }
-else if (activeTab == ESCALATION)
+else if (Active.Label == ESCALATION)
 {
-     <EscalationBoard ContractId="ContractId" />
+    <EscalationBoard ContractId="ContractId" />
 }
 else
 {
     <div class="stray">
-        <EmptyTile Title="@($"{activeTab} arrive next")" Message="This section is not built yet. Penalty lists are live; the others follow one at a time." Icon="@KubaIcons.Light.Gear" />
+        <EmptyTile Title="@($"{Active.Label} arrive next")" Message="This section is not built yet." Icon="@Active.Icon" />
     </div>
 }
 
 @code {
     private const string PENALTY_LISTS = "Penalty lists";
     private const string ESCALATION = "Escalation parameters";
-    private static readonly string[] TABS = { PENALTY_LISTS, ESCALATION, "DNO reasons", "Reference URLs", "Income fields" };
+
+    private sealed record Section(string Label, string Icon, bool IsLive);
+
+    private static readonly Section[] SECTIONS =
+    {
+        new(PENALTY_LISTS, KubaIcons.Regular.WarningCircle, true),
+        new(ESCALATION, KubaIcons.Regular.ChartBar, true),
+        new("DNO reasons", KubaIcons.Regular.XCircle, false),
+        new("Reference URLs", KubaIcons.Regular.ArrowUpRight, false),
+        new("Income fields", KubaIcons.Regular.Receipt, false)
+    };
 
     [SupplyParameterFromQuery] public Guid? ContractId { get; set; }
     [SupplyParameterFromQuery] public string? Tab { get; set; }
 
-    private string activeTab = PENALTY_LISTS;
+    private int activeIndex;
+
+    private Section Active => SECTIONS[activeIndex];
 
     protected override void OnInitialized()
     {
         Header.Set("Catalogue");
-        activeTab = TABS.FirstOrDefault(t => string.Equals(t, Tab, StringComparison.OrdinalIgnoreCase)) ?? PENALTY_LISTS;
+        int found = Array.FindIndex(SECTIONS, s => string.Equals(s.Label, Tab, StringComparison.OrdinalIgnoreCase));
+        activeIndex = found < 0 ? 0 : found;
     }
 
-    // The tab lives in the address so a link can open a section directly and the back button works.
-    private void SelectTab(string tab)
+    // The section lives in the address so a link can open one directly and the back button works.
+    private async Task SelectTab(int index)
     {
-        activeTab = tab;
-        Navigation.NavigateTo(tab == PENALTY_LISTS ? ClientRoutes.CATALOGUE : $"{ClientRoutes.CATALOGUE}?tab={Uri.EscapeDataString(tab)}", replace: true);
+        activeIndex = index;
+        Navigation.NavigateTo(index == 0 ? ClientRoutes.CATALOGUE : $"{ClientRoutes.CATALOGUE}?tab={Uri.EscapeDataString(SECTIONS[index].Label)}", replace: true);
+        await JavaScript.InvokeVoidAsync("kubaMotion.revealSelected", ".sections");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await JavaScript.InvokeVoidAsync("kubaMotion.revealSelected", ".sections");
     }
 }

@@ -30,6 +30,12 @@
 
   window.kubaMotion = {
     // A Blazor app starts with one history entry; anything beyond it was our own navigation.
+    // On narrow screens the section rail scrolls; keep the chosen section in view.
+    revealSelected(selector) {
+      const rail = document.querySelector(selector);
+      const item = rail && rail.querySelector('[aria-selected="true"]');
+      if (item) item.scrollIntoView({ block: "nearest", inline: "center", behavior: reduced() ? "auto" : "smooth" });
+    },
     canGoBack() { return window.history.length > 1 && document.referrer !== "" || window.history.length > 2; },
     animate(el, name) {
       const recipe = recipes[name];
