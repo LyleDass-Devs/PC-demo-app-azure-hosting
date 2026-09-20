@@ -4,13 +4,7 @@
 
 <BoardTile Class="tile--flush">
     <div class="toolbar">
-        <select class="kinput kselect" aria-label="Contract" @onchange="OnContractChanged">
-            <option value="">Choose a contract</option>
-            @foreach (DropDownResponse item in contracts)
-            {
-                <option value="@item.Id" selected="@(item.Id == contractId)">@item.Value</option>
-            }
-        </select>
+        <KubaSelect Items="contracts" Value="contractId" ValueChanged="OnContractChanged" Placeholder="Choose a contract" AriaLabel="Contract" />
         @if (contractId is not null)
         {
             <span class="toolbar__count">@(hasExisting ? $"Last saved {savedAt}" : "Not captured yet")</span>
@@ -62,13 +56,7 @@
                 <div class="field-row">
                     <div class="field">
                         <label for="base-month">Month</label>
-                        <select id="base-month" class="kinput kselect @Invalid("baseMonth")" @bind="baseMonth">
-                            <option value="0">Choose a month</option>
-                            @for (int month = 1; month <= 12; month++)
-                            {
-                                <option value="@month">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month)</option>
-                            }
-                        </select>
+                        <KubaSelect Id="base-month" Items="monthItems" Value="baseMonthId" ValueChanged="OnMonthChanged" Placeholder="Choose a month" AriaLabel="Month" AllowEmpty="false" Invalid="@(FieldError("baseMonth") is not null)" />
                         @if (FieldError("baseMonth") is string e4)
                         {
                             <span class="field__error">@e4</span>
@@ -136,6 +124,14 @@
 
     private decimal WeightsSum => labourWeight + fuelWeight + cpiWeight;
 
+    private static readonly List<DropDownResponse> monthItems = Enumerable.Range(1, 12)
+        .Select(m => new DropDownResponse { Id = new Guid(m, 0, 0, new byte[8]), Value = System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m) })
+        .ToList();
+
+    private Guid? baseMonthId => baseMonth == 0 ? null : new Guid(baseMonth, 0, 0, new byte[8]);
+
+    private void OnMonthChanged(Guid? id) => baseMonth = id is null ? 0 : (int)BitConverter.ToUInt32(id.Value.ToByteArray(), 0);
+
     // numeric columns come back padded to their scale; 0.500000 reads better as 0.5
     private static decimal Trim(decimal value) => value / 1.000000000000000000000000000000000m;
 
@@ -146,9 +142,9 @@
         if (contractId is not null) await Load();
     }
 
-    private async Task OnContractChanged(ChangeEventArgs e)
+    private async Task OnContractChanged(Guid? id)
     {
-        contractId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        contractId = id;
         if (contractId is not null) await Load();
     }
 

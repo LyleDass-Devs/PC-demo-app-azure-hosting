@@ -1,0 +1,110 @@
+@implements IDisposable
+@inject IJSRuntime JavaScript
+
+<div class="kpick @Class @(open ? "kpick--open" : "")" @ref="root">
+    <button type="button" id="@Id" class="kinput kpick__button @(Invalid ? "invalid" : "")" aria-haspopup="listbox" aria-expanded="@(open ? "true" : "false")"
+            aria-label="@AriaLabel" disabled="@Disabled" @onclick="Toggle" @onkeydown="OnButtonKey">
+        <span class="kpick__value @(SelectedLabel is null ? "kpick__value--empty" : "")">@(SelectedLabel ?? Placeholder)</span>
+        @((MarkupString)KubaIcons.Regular.CaretDown)
+    </button>
+
+    @if (open)
+    {
+        <ul class="kpick__list" role="listbox" tabindex="-1" @ref="list" @onkeydown="OnListKey" @onkeydown:preventDefault="false">
+            @if (AllowEmpty)
+            {
+                <li role="option" class="kpick__item @(highlight == -1 ? "kpick__item--focus" : "")" aria-selected="@(Value is null ? "true" : "false")" @onclick="() => Choose(null)" @onmouseenter="() => highlight = -1">@Placeholder</li>
+            }
+            @for (int i = 0; i < Items.Count; i++)
+            {
+                int index = i;
+                DropDownResponse item = Items[i];
+                <li role="option" class="kpick__item @(highlight == index ? "kpick__item--focus" : "")" aria-selected="@(item.Id == Value ? "true" : "false")" @onclick="() => Choose(item.Id)" @onmouseenter="() => highlight = index">
+                    @item.Value
+                    @if (item.Id == Value) { @((MarkupString)KubaIcons.Regular.Check) }
+                </li>
+            }
+            @if (Items.Count == 0)
+            {
+                <li class="kpick__item kpick__item--none">@EmptyText</li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? Value { get; set; }
+    [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
+    [Parameter] public List<DropDownResponse> Items { get; set; } = new();
+    [Parameter] public string Placeholder { get; set; } = "Choose";
+    [Parameter] public string EmptyText { get; set; } = "Nothing to choose from";
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public bool AllowEmpty { get; set; } = true;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Invalid { get; set; }
+
+    private bool open;
+    private int highlight = -1;
+    private ElementReference root, list;
+    private DotNetObjectReference<KubaSelect>? self;
+
+    private string? SelectedLabel => Items.FirstOrDefault(i => i.Id == Value)?.Value;
+
+    private async Task Toggle()
+    {
+        if (open) { Close(); return; }
+        open = true;
+        highlight = Value is null ? -1 : Items.FindIndex(i => i.Id == Value);
+        self ??= DotNetObjectReference.Create(this);
+        await JavaScript.InvokeVoidAsync("kubaMotion.watchOutside", root, self);
+        StateHasChanged();
+        await Task.Yield();
+        await list.FocusAsync();
+    }
+
+    private void Close()
+    {
+        open = false;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OutsideClick() => Close();
+
+    private async Task Choose(Guid? id)
+    {
+        open = false;
+        if (id != Value)
+        {
+            Value = id;
+            await ValueChanged.InvokeAsync(id);
+        }
+    }
+
+    private async Task OnButtonKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "ArrowDown" or "ArrowUp") await Toggle();
+    }
+
+    private async Task OnListKey(KeyboardEventArgs e)
+    {
+        int first = AllowEmpty ? -1 : 0;
+        int last = Items.Count - 1;
+
+        switch (e.Key)
+        {
+            case "ArrowDown": highlight = Math.Min(highlight + 1, last); break;
+            case "ArrowUp": highlight = Math.Max(highlight - 1, first); break;
+            case "Home": highlight = first; break;
+            case "End": highlight = last; break;
+            case "Enter":
+            case " ": await Choose(highlight < 0 ? null : Items[highlight].Id); break;
+            case "Escape":
+            case "Tab": Close(); break;
+        }
+    }
+
+    public void Dispose() => self?.Dispose();
+}

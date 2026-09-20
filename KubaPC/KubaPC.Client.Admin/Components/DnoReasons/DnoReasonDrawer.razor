@@ -1,0 +1,91 @@
+@inject IDnoReasonClientService DnoReasonClient
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(480px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <div class="kdrawer__head">
+            <h2>@(isEdit ? "Edit reason" : "New reason")</h2>
+            <button class="iconbtn kdrawer__close" type="button" aria-label="Close" @onclick="Close" disabled="@busy"><MudIcon Icon="@KubaIcons.Regular.X" /></button>
+        </div>
+        <p class="lede">@(isEdit ? "Form F1 records that already use this reason keep it." : "Why a trip the tracking feed marked as not operated is treated as a standing trip.")</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            <div class="field">
+                <label for="reason-value">Reason</label>
+                <input id="reason-value" class="kinput @(FieldError("reasonValue") is not null ? "invalid" : "")" @bind="reasonValue" autocomplete="off" placeholder="Weather" required />
+                @if (FieldError("reasonValue") is string e1) { <span class="field__error">@e1</span> }
+            </div>
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Add reason")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool open, isEdit, busy;
+    private Guid editingId;
+    private string reasonValue = string.Empty;
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    public void OpenCreate()
+    {
+        Reset();
+        isEdit = false;
+        open = true;
+        StateHasChanged();
+    }
+
+    public void OpenEdit(DnoReasonResponse item)
+    {
+        Reset();
+        isEdit = true;
+        editingId = item.Id;
+        reasonValue = item.ReasonValue;
+        open = true;
+        StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        reasonValue = string.Empty;
+        busy = false;
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        var result = isEdit
+            ? await DnoReasonClient.Update(new UpdateDnoReasonRequest { Id = editingId, ReasonValue = reasonValue })
+            : (await DnoReasonClient.Create(new CreateDnoReasonRequest { ReasonValue = reasonValue })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Reason updated" : "Reason added", reasonValue);
+        await OnSaved.InvokeAsync();
+    }
+}

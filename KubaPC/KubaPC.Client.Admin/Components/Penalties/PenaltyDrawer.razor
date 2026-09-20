@@ -16,13 +16,7 @@
             {
                 <div class="field">
                     <label for="penalty-contract">Contract</label>
-                    <select id="penalty-contract" class="kinput kselect @Invalid("contractId")" @bind="chosenContractId" disabled="@(ContractId is not null)">
-                        <option value="">Choose a contract</option>
-                        @foreach (DropDownResponse item in Contracts)
-                        {
-                            <option value="@item.Id">@item.Value</option>
-                        }
-                    </select>
+                    <KubaSelect Id="penalty-contract" Items="Contracts" @bind-Value="chosenContractId" Placeholder="Choose a contract" AriaLabel="Contract" Disabled="@(ContractId is not null)" Invalid="@(FieldError("contractId") is not null)" />
                     @if (FieldError("contractId") is string e0) { <span class="field__error">@e0</span> }
                 </div>
             }
@@ -35,13 +29,7 @@
                 </div>
                 <div class="field">
                     <label for="penalty-type">Type</label>
-                    <select id="penalty-type" class="kinput kselect @Invalid("penaltyType")" @bind="penaltyType">
-                        <option value="">Choose a type</option>
-                        @foreach (PenaltyTypeResponse type in Lookups.PenaltyTypes)
-                        {
-                            <option value="@type.Value">@type.Value</option>
-                        }
-                    </select>
+                    <KubaSelect Id="penalty-type" Items="typeItems" Value="penaltyTypeId" ValueChanged="OnTypeChanged" Placeholder="Choose a type" AriaLabel="Penalty type" AllowEmpty="false" Invalid="@(FieldError("penaltyType") is not null)" />
                     @if (FieldError("penaltyType") is string e2) { <span class="field__error">@e2</span> }
                 </div>
             </div>
@@ -60,13 +48,7 @@
                 </div>
                 <div class="field">
                     <label for="revenue-type">Revenue type <span class="field__optional">optional</span></label>
-                    <select id="revenue-type" class="kinput kselect" @bind="revenueType">
-                        <option value="">Not set</option>
-                        @foreach (string revenue in Lookups.RevenueTypes)
-                        {
-                            <option value="@revenue">@revenue</option>
-                        }
-                    </select>
+                    <KubaSelect Id="revenue-type" Items="revenueItems" Value="revenueTypeId" ValueChanged="OnRevenueChanged" Placeholder="Not set" AriaLabel="Revenue type" />
                 </div>
             </div>
 
@@ -104,7 +86,25 @@
     private string penaltyCode = string.Empty, description = string.Empty, penaltyType = string.Empty, revenueType = string.Empty;
     private string? penaltyFormula;
     private decimal? randAmount;
-    private string chosenContractId = string.Empty;
+    private Guid? chosenContractId;
+
+    // Text lookups get a stable id each so the picker can address them: the id encodes the option's position.
+    private List<DropDownResponse> typeItems = new(), revenueItems = new();
+    private Guid? penaltyTypeId, revenueTypeId;
+
+    protected override void OnParametersSet()
+    {
+        typeItems = Lookups.PenaltyTypes.Select((t, i) => new DropDownResponse { Id = IdFor(i), Value = t.Value }).ToList();
+        revenueItems = Lookups.RevenueTypes.Select((r, i) => new DropDownResponse { Id = IdFor(i), Value = r }).ToList();
+        penaltyTypeId = typeItems.FirstOrDefault(t => t.Value == penaltyType)?.Id;
+        revenueTypeId = revenueItems.FirstOrDefault(r => r.Value == revenueType)?.Id;
+    }
+
+    private static Guid IdFor(int index) => new Guid(index + 1, 0, 0, new byte[8]);
+
+    private void OnTypeChanged(Guid? id) { penaltyTypeId = id; penaltyType = typeItems.FirstOrDefault(t => t.Id == id)?.Value ?? string.Empty; }
+
+    private void OnRevenueChanged(Guid? id) { revenueTypeId = id; revenueType = revenueItems.FirstOrDefault(t => t.Id == id)?.Value ?? string.Empty; }
     private string? error;
     private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
     private ElementReference statusLine;
@@ -116,7 +116,7 @@
     {
         Reset();
         isEdit = false;
-        chosenContractId = ContractId?.ToString() ?? string.Empty;
+        chosenContractId = ContractId;
         open = true;
         StateHasChanged();
     }
@@ -128,8 +128,8 @@
         editingId = item.Id;
         penaltyCode = item.PenaltyCode;
         description = item.Description;
-        penaltyType = item.PenaltyType;
-        revenueType = item.RevenueType ?? string.Empty;
+        penaltyType = item.PenaltyType; penaltyTypeId = typeItems.FirstOrDefault(t => t.Value == penaltyType)?.Id;
+        revenueType = item.RevenueType ?? string.Empty; revenueTypeId = revenueItems.FirstOrDefault(r => r.Value == revenueType)?.Id;
         randAmount = item.RandAmount;
         penaltyFormula = item.PenaltyFormula;
         repeatEscalation = item.RepeatPenaltyEscalationEnabled;
@@ -145,7 +145,8 @@
         penaltyFormula = null;
         randAmount = null;
         repeatEscalation = false;
-        chosenContractId = string.Empty;
+        chosenContractId = null;
+        penaltyTypeId = revenueTypeId = null;
         busy = false;
     }
 
@@ -168,7 +169,7 @@
             })
             : (await PenaltyClient.Create(new CreatePenaltyListItemRequest
             {
-                ContractId = Guid.TryParse(chosenContractId, out Guid picked) ? picked : Guid.Empty, PenaltyCode = penaltyCode, Description = description, PenaltyType = penaltyType,
+                ContractId = chosenContractId ?? Guid.Empty, PenaltyCode = penaltyCode, Description = description, PenaltyType = penaltyType,
                 RevenueType = string.IsNullOrEmpty(revenueType) ? null : revenueType, RandAmount = randAmount,
                 PenaltyFormula = penaltyFormula, RepeatPenaltyEscalationEnabled = repeatEscalation
             })) as KubaPC.SharedClient.Services.Models.ApiResult;

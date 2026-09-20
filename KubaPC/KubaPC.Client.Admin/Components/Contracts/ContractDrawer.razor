@@ -16,13 +16,7 @@
             {
                 <div class="field">
                     <label for="contract-operator">Operator</label>
-                    <select id="contract-operator" class="kinput kselect @Invalid("operatorId")" @bind="chosenOperatorId">
-                        <option value="">Choose an operator</option>
-                        @foreach (DropDownResponse item in Operators)
-                        {
-                            <option value="@item.Id">@item.Value</option>
-                        }
-                    </select>
+                    <KubaSelect Id="contract-operator" Items="Operators" @bind-Value="chosenOperatorId" Placeholder="Choose an operator" AriaLabel="Operator" Invalid="@(FieldError("operatorId") is not null)" />
                     @if (FieldError("operatorId") is string e0) { <span class="field__error">@e0</span> }
                 </div>
             }
@@ -111,7 +105,7 @@
     private string contractNumber = string.Empty;
     private string? contractName, bankName, bankBranchName, bankBranchCode, bankAccountName, bankAccountNumber, bankAccountType;
     private DateOnly? commencementDate, expiryDate;
-    private string chosenOperatorId = string.Empty;
+    private Guid? chosenOperatorId;
     private string? error;
     private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
     private ElementReference statusLine;
@@ -146,7 +140,7 @@
         contractNumber = string.Empty;
         contractName = bankName = bankBranchName = bankBranchCode = bankAccountName = bankAccountNumber = bankAccountType = null;
         commencementDate = expiryDate = null;
-        chosenOperatorId = string.Empty;
+        chosenOperatorId = null;
         busy = false;
     }
 
@@ -174,7 +168,7 @@
             })
             : (await ContractClient.Create(new CreateContractRequest
             {
-                OperatorId = OperatorId ?? (Guid.TryParse(chosenOperatorId, out Guid picked) ? picked : Guid.Empty), ContractNumber = contractNumber, ContractName = contractName,
+                OperatorId = OperatorId ?? chosenOperatorId ?? Guid.Empty, ContractNumber = contractNumber, ContractName = contractName,
                 CommencementDate = commencement, ExpiryDate = expiryDate,
                 BankName = bankName, BankBranchName = bankBranchName, BankBranchCode = bankBranchCode,
                 BankAccountName = bankAccountName, BankAccountNumber = bankAccountNumber, BankAccountType = bankAccountType

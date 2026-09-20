@@ -36,6 +36,15 @@
       const item = rail && rail.querySelector('[aria-selected="true"]');
       if (item) item.scrollIntoView({ block: "nearest", inline: "center", behavior: reduced() ? "auto" : "smooth" });
     },
+    // Tell a picker when a pointer lands outside it, once, then stop listening.
+    watchOutside(root, dotnet) {
+      const onDown = (e) => {
+        if (root.contains(e.target)) return;
+        document.removeEventListener("pointerdown", onDown, true);
+        dotnet.invokeMethodAsync("OutsideClick");
+      };
+      setTimeout(() => document.addEventListener("pointerdown", onDown, true), 0);
+    },
     canGoBack() { return window.history.length > 1 && document.referrer !== "" || window.history.length > 2; },
     animate(el, name) {
       const recipe = recipes[name];

@@ -9,20 +9,8 @@
             @((MarkupString)KubaIcons.Regular.MagnifyingGlass)
             <input class="kinput" type="search" placeholder="Search by code or description" aria-label="Search penalties" value="@search" @oninput="OnSearchInput" />
         </div>
-        <select class="kinput kselect" aria-label="Operator" @onchange="OnOperatorFilter">
-            <option value="">All operators</option>
-            @foreach (DropDownResponse item in operators)
-            {
-                <option value="@item.Id" selected="@(item.Id == operatorId)">@item.Value</option>
-            }
-        </select>
-        <select class="kinput kselect" aria-label="Contract" @onchange="OnContractFilter">
-            <option value="">All contracts</option>
-            @foreach (DropDownResponse item in contracts)
-            {
-                <option value="@item.Id" selected="@(item.Id == contractId)">@item.Value</option>
-            }
-        </select>
+        <KubaSelect Items="operators" Value="operatorId" ValueChanged="OnOperatorFilter" Placeholder="All operators" AriaLabel="Operator" />
+        <KubaSelect Items="contracts" Value="contractId" ValueChanged="OnContractFilter" Placeholder="All contracts" AriaLabel="Contract" />
         <div class="seg" role="group" aria-label="Show">
             <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
             <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Inactive</button>
@@ -209,17 +197,17 @@
         debounce = new System.Threading.Timer(_ => InvokeAsync(Reload), null, 300, Timeout.Infinite);
     }
 
-    private async Task OnOperatorFilter(ChangeEventArgs e)
+    private async Task OnOperatorFilter(Guid? id)
     {
-        operatorId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        operatorId = id;
         contractId = null;
         await LoadContracts();
         await Reload();
     }
 
-    private Task OnContractFilter(ChangeEventArgs e)
+    private Task OnContractFilter(Guid? id)
     {
-        contractId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        contractId = id;
         return Reload();
     }
 

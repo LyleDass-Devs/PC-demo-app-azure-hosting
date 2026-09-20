@@ -18,10 +18,6 @@
         <button type="button" role="tab" class="sections__item" aria-selected="@(index == activeIndex ? "true" : "false")" @onclick="() => SelectTab(index)">
             @((MarkupString)section.Icon)
             <span class="sections__label">@section.Label</span>
-            @if (!section.IsLive)
-            {
-                <span class="sections__soon">soon</span>
-            }
         </button>
     }
 </nav>
@@ -34,6 +30,10 @@ else if (Active.Label == ESCALATION)
 {
     <EscalationBoard ContractId="ContractId" />
 }
+else if (Active.Label == DNO_REASONS)
+{
+    <DnoReasonBoard />
+}
 else
 {
     <div class="stray">
@@ -44,6 +44,7 @@ else
 @code {
     private const string PENALTY_LISTS = "Penalty lists";
     private const string ESCALATION = "Escalation parameters";
+    private const string DNO_REASONS = "DNO reasons";
 
     private sealed record Section(string Label, string Icon, bool IsLive);
 
@@ -51,7 +52,7 @@ else
     {
         new(PENALTY_LISTS, KubaIcons.Regular.WarningCircle, true),
         new(ESCALATION, KubaIcons.Regular.ChartBar, true),
-        new("DNO reasons", KubaIcons.Regular.XCircle, false),
+        new(DNO_REASONS, KubaIcons.Regular.XCircle, true),
         new("Reference URLs", KubaIcons.Regular.ArrowUpRight, false),
         new("Income fields", KubaIcons.Regular.Receipt, false)
     };

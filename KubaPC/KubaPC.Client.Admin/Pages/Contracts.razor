@@ -29,13 +29,7 @@
         </div>
         @if (OperatorId is null)
         {
-            <select class="kinput kselect" aria-label="Operator" @onchange="OnOperatorFilter">
-                <option value="">All operators</option>
-                @foreach (DropDownResponse item in operators)
-                {
-                    <option value="@item.Id" selected="@(item.Id == filterOperatorId)">@item.Value</option>
-                }
-            </select>
+            <KubaSelect Items="operators" Value="filterOperatorId" ValueChanged="OnOperatorFilter" Placeholder="All operators" AriaLabel="Operator" />
         }
         <div class="seg" role="group" aria-label="Show">
             <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
@@ -253,9 +247,9 @@
 
     private Task ClearSearch() { search = string.Empty; return Reload(); }
 
-    private Task OnOperatorFilter(ChangeEventArgs e)
+    private Task OnOperatorFilter(Guid? id)
     {
-        filterOperatorId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        filterOperatorId = id;
         return Reload();
     }
 

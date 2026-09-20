@@ -251,6 +251,24 @@ body:has(.mud-drawer--open){overflow:hidden}
 @media (max-width:959px){.sections{display:flex;overflow-x:auto;scrollbar-width:none;padding:5px;--section-w:212px}.sections::-webkit-scrollbar{display:none}.sections__item{flex:0 0 var(--section-w);width:var(--section-w);padding:0 8px}.sections__marker{width:var(--section-w);transform:translateX(calc(var(--active-index,0) * var(--section-w)))}}
 @media (max-width:599px){.sections{--section-w:176px}.sections__item{min-height:44px;font-size:13px;gap:7px}.sections__item svg{width:16px;height:16px}.sections__soon{display:none}}
 @media (prefers-reduced-motion:reduce){.sections__marker,.sections__item,.sections__item svg{transition:none}}
+/* Picker: a button that opens a list inside the page, so it can never hang past a phone's edge. */
+.kpick{position:relative;min-width:0}
+.kpick__button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;cursor:pointer;background:var(--tile)}
+.kpick__button svg{width:16px;height:16px;flex:none;color:var(--ink-placeholder);transition:transform 220ms var(--ease-state)}
+.kpick--open .kpick__button svg{transform:rotate(180deg)}
+.kpick__value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kpick__value--empty{color:var(--ink-placeholder)}
+.kpick__list{position:absolute;z-index:var(--z-sticky);left:0;right:0;top:calc(100% + 6px);max-height:min(320px,50vh);overflow-y:auto;margin:0;padding:6px;list-style:none;background:var(--tile);border:1px solid var(--tile-edge);border-radius:12px;box-shadow:0 18px 40px -18px rgba(39,34,81,.35),0 2px 8px rgba(39,34,81,.06);animation:kpick-in 160ms var(--ease-state);outline:none}
+.kpick__item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:8px;font-size:14px;color:var(--ink);cursor:pointer}
+.kpick__item svg{width:16px;height:16px;color:var(--kuba-indigo);flex:none}
+.kpick__item--focus,.kpick__item:hover{background:var(--board)}
+.kpick__item[aria-selected="true"]{font-weight:600;color:var(--kuba-indigo)}
+.kpick__item--none{color:var(--ink-2);cursor:default}
+.toolbar .kpick{flex:1 1 200px;max-width:320px}
+.toolbar .kpick__button{height:38px;font-size:13px}
+@keyframes kpick-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (max-width:599px){.toolbar .kpick{flex-basis:100%;max-width:none}.kpick__button{height:48px;font-size:16px}}
+@media (prefers-reduced-motion:reduce){.kpick__list{animation:none}}
 /* Native pickers and popovers must never run past a phone's edge. */
 select.kselect{max-width:100%}
 .mud-popover{max-width:calc(100vw - 24px)}
