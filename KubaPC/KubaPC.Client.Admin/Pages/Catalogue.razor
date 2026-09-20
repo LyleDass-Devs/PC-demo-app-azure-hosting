@@ -1,4 +1,5 @@
 ﻿@page "/catalogue"
+@using KubaPC.Client.Admin.Components.Escalations
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject PageHeader Header
 @inject NavigationManager Navigation
@@ -18,6 +19,10 @@
 {
     <PenaltyListBoard ContractId="ContractId" />
 }
+else if (activeTab == ESCALATION)
+{
+     <EscalationBoard ContractId="ContractId" />
+}
 else
 {
     <div class="stray">
@@ -27,7 +32,8 @@ else
 
 @code {
     private const string PENALTY_LISTS = "Penalty lists";
-    private static readonly string[] TABS = { PENALTY_LISTS, "Escalation parameters", "DNO reasons", "Reference URLs", "Income fields" };
+    private const string ESCALATION = "Escalation parameters";
+    private static readonly string[] TABS = { PENALTY_LISTS, ESCALATION, "DNO reasons", "Reference URLs", "Income fields" };
 
     [SupplyParameterFromQuery] public Guid? ContractId { get; set; }
     [SupplyParameterFromQuery] public string? Tab { get; set; }

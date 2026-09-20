@@ -1,0 +1,217 @@
+﻿@inject IContractClientService ContractClient
+@inject IEscalationParameterClientService EscalationClient
+@inject INotificationService Notifications
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <select class="kinput kselect" aria-label="Contract" @onchange="OnContractChanged">
+            <option value="">Choose a contract</option>
+            @foreach (DropDownResponse item in contracts)
+            {
+                <option value="@item.Id" selected="@(item.Id == contractId)">@item.Value</option>
+            }
+        </select>
+        @if (contractId is not null)
+        {
+            <span class="toolbar__count">@(hasExisting ? $"Last saved {savedAt}" : "Not captured yet")</span>
+        }
+    </div>
+
+    @if (contractId is null)
+    {
+        <EmptyTile Title="Pick a contract" Message="Each contract has its own Form D weights and base month." Icon="@KubaIcons.Light.Gear" />
+    }
+    else
+    {
+        <div class="focus-card" style="max-width:640px;margin:20px auto">
+            <p class="lede">Form D: f = a × (Lt ÷ Lbm) + b × (Ft ÷ Fbm) + c × (CPIt ÷ Cbm). The weights a, b and c must add up to 1.00.</p>
+
+            <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+            <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+                <h3 class="form-section">Weights</h3>
+                <div class="field-row field-row--3">
+                    <div class="field">
+                        <label for="labour-weight">Labour, a</label>
+                        <input id="labour-weight" class="kinput @Invalid("labourWeight")" type="number" step="0.01" min="0" max="1" @bind="labourWeight" @bind:event="oninput" />
+                        @if (FieldError("labourWeight") is string e1)
+                        {
+                            <span class="field__error">@e1</span>
+                        }
+                    </div>
+                    <div class="field">
+                        <label for="fuel-weight">Fuel, b</label>
+                        <input id="fuel-weight" class="kinput @Invalid("fuelWeight")" type="number" step="0.01" min="0" max="1" @bind="fuelWeight" @bind:event="oninput" />
+                        @if (FieldError("fuelWeight") is string e2)
+                        {
+                            <span class="field__error">@e2</span>
+                        }
+                    </div>
+                    <div class="field">
+                        <label for="cpi-weight">CPI, c</label>
+                        <input id="cpi-weight" class="kinput @Invalid("cpiWeight")" type="number" step="0.01" min="0" max="1" @bind="cpiWeight" @bind:event="oninput" />
+                        @if (FieldError("cpiWeight") is string e3)
+                        {
+                            <span class="field__error">@e3</span>
+                        }
+                    </div>
+                </div>
+                <p class="field__hint @(WeightsSum == 1.00m ? "" : "field__hint--warn")">Sum: @WeightsSum.ToString("0.00")</p>
+
+                <h3 class="form-section">Base month</h3>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="base-month">Month</label>
+                        <select id="base-month" class="kinput kselect @Invalid("baseMonth")" @bind="baseMonth">
+                            <option value="0">Choose a month</option>
+                            @for (int month = 1; month <= 12; month++)
+                            {
+                                <option value="@month">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month)</option>
+                            }
+                        </select>
+                        @if (FieldError("baseMonth") is string e4)
+                        {
+                            <span class="field__error">@e4</span>
+                        }
+                    </div>
+                    <div class="field">
+                        <label for="base-year">Year</label>
+                        <input id="base-year" class="kinput @Invalid("baseYear")" type="number" min="1990" max="@DateTime.Now.Year" @bind="baseYear" />
+                        @if (FieldError("baseYear") is string e5)
+                        {
+                            <span class="field__error">@e5</span>
+                        }
+                    </div>
+                </div>
+
+                <h3 class="form-section">Base index values</h3>
+                <div class="field-row field-row--3">
+                    <div class="field">
+                        <label for="labour-base">Labour, Lbm</label>
+                        <input id="labour-base" class="kinput @Invalid("labourBaseValue")" type="number" step="0.0001" min="0" @bind="labourBaseValue" />
+                        @if (FieldError("labourBaseValue") is string e6)
+                        {
+                            <span class="field__error">@e6</span>
+                        }
+                    </div>
+                    <div class="field">
+                        <label for="fuel-base">Fuel, Fbm</label>
+                        <input id="fuel-base" class="kinput @Invalid("fuelBaseValue")" type="number" step="0.0001" min="0" @bind="fuelBaseValue" />
+                        @if (FieldError("fuelBaseValue") is string e7)
+                        {
+                            <span class="field__error">@e7</span>
+                        }
+                    </div>
+                    <div class="field">
+                        <label for="cpi-base">CPI, Cbm</label>
+                        <input id="cpi-base" class="kinput @Invalid("cpiBaseValue")" type="number" step="0.0001" min="0" @bind="cpiBaseValue" />
+                        @if (FieldError("cpiBaseValue") is string e8)
+                        {
+                            <span class="field__error">@e8</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="kdrawer__actions">
+                    <KubaButton Type="submit" Text="@(hasExisting ? "Save changes" : "Save parameters")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+                </div>
+            </form>
+        </div>
+    }
+</BoardTile>
+
+@code {
+    [Parameter] public Guid? ContractId { get; set; }
+
+    
+    private List<DropDownResponse> contracts = new();
+    private Guid? contractId;
+    private bool hasExisting, busy;
+    private string savedAt = string.Empty;
+    private decimal labourWeight, fuelWeight, cpiWeight, labourBaseValue, fuelBaseValue, cpiBaseValue;
+    private int baseMonth, baseYear = DateTime.Now.Year;
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    private decimal WeightsSum => labourWeight + fuelWeight + cpiWeight;
+
+    // numeric columns come back padded to their scale; 0.500000 reads better as 0.5
+    private static decimal Trim(decimal value) => value / 1.000000000000000000000000000000000m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        contracts = (await ContractClient.GetDropDown(null)).Data ?? new List<DropDownResponse>();
+        contractId = ContractId;
+        if (contractId is not null) await Load();
+    }
+
+    private async Task OnContractChanged(ChangeEventArgs e)
+    {
+        contractId = Guid.TryParse(e.Value?.ToString(), out Guid id) ? id : null;
+        if (contractId is not null) await Load();
+    }
+
+    private async Task Load()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        hasExisting = false;
+        labourWeight = fuelWeight = cpiWeight = labourBaseValue = fuelBaseValue = cpiBaseValue = 0;
+        baseMonth = 0;
+        baseYear = DateTime.Now.Year;
+
+        var result = await EscalationClient.Get(contractId!.Value);
+
+        if (result.IsSuccess && result.Data is not null)
+        {
+            hasExisting = true;
+            labourWeight = Trim(result.Data.LabourWeight);
+            fuelWeight = Trim(result.Data.FuelWeight);
+            cpiWeight = Trim(result.Data.CpiWeight);
+            baseMonth = result.Data.BaseMonth;
+            baseYear = result.Data.BaseYear;
+            labourBaseValue = Trim(result.Data.LabourBaseValue); 
+            fuelBaseValue = Trim(result.Data.FuelBaseValue);
+            cpiBaseValue = Trim(result.Data.CpiBaseValue);
+            savedAt = RelativeTime.Describe(result.Data.ModifiedAt);
+        }
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+    private string Invalid(string field) => FieldError(field) is null ? string.Empty : "invalid";
+
+    private async Task Save()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>(); 
+        busy = true;
+
+        var result = await EscalationClient.Save(new SaveEscalationParametersRequest
+        {
+            ContractId = contractId!.Value,
+            LabourWeight = labourWeight,
+            FuelWeight = fuelWeight,
+            CpiWeight = cpiWeight,
+            BaseMonth = baseMonth,
+            BaseYear = baseYear,
+            LabourBaseValue = labourBaseValue,
+            FuelBaseValue = fuelBaseValue,
+            CpiBaseValue = cpiBaseValue
+        });
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        hasExisting = true;
+        savedAt = "just now";
+        Notifications.Notify(NotificationLevel.Success, "Escalation parameters saved", contracts.FirstOrDefault(c => c.Id == contractId)?.Value);
+    }
+}
