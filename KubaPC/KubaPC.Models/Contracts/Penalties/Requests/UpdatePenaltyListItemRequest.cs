@@ -1,12 +1,8 @@
-﻿namespace KubaPC.Models.Contracts.Contracts.Penalties.Responses
+﻿namespace KubaPC.Models.Contracts.Penalties.Requests
 {
-    public class PenaltyListItemResponse
+    public class UpdatePenaltyListItemRequest
     {
         public Guid Id { get; set; }
-        public Guid ContractId { get; set; }
-        public string ContractNumber { get; set; } = string.Empty;
-        public Guid OperatorId { get; set; }
-        public string OperatorName { get; set; } = string.Empty;
         public string PenaltyCode { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string PenaltyType { get; set; } = string.Empty;
@@ -14,7 +10,5 @@
         public decimal? RandAmount { get; set; }
         public string? PenaltyFormula { get; set; }
         public bool RepeatPenaltyEscalationEnabled { get; set; }
-        public bool IsActive { get; set; }
-        public int CaptureCount { get; set; }
     }
 }

@@ -1,34 +1,34 @@
 ﻿using FastEndpoints;
-using KubaPC.Models.Contracts.Contracts.Penalties.Requests;
+using KubaPC.Models.Contracts.Penalties.Requests;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
-namespace KubaPC.API.Endpoints.Contracts.Penalties
+namespace KubaPC.API.Endpoints.Penalties
 {
-    public class CreatePenaltyListItemEndpoint : Endpoint<CreatePenaltyListItemRequest, Guid>
+    public class DeactivatePenaltyListItemEndpoint : Endpoint<DeactivatePenaltyListItemRequest>
     {
         private readonly IPenaltyListService penaltyListService;
 
-        public CreatePenaltyListItemEndpoint(IPenaltyListService penaltyListService)
+        public DeactivatePenaltyListItemEndpoint(IPenaltyListService penaltyListService)
         {
             this.penaltyListService = penaltyListService;
         }
 
         public override void Configure()
         {
-            Post("/penalty-list/create");
+            Post("/penalty-list/deactivate");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
             Policies("Admin");
         }
 
-        public override async Task HandleAsync(CreatePenaltyListItemRequest request, CancellationToken ct)
+        public override async Task HandleAsync(DeactivatePenaltyListItemRequest request, CancellationToken ct)
         {
             try
             {
                 Guid actor = Guid.Parse(User.FindFirst("UserId")!.Value);
 
-                CreateResult result = await penaltyListService.CreateItem(request, actor);
+                OperationResult result = await penaltyListService.DeactivateItem(request.Id, actor);
 
                 if (!result.IsSuccess)
                 {
@@ -37,11 +37,11 @@ namespace KubaPC.API.Endpoints.Contracts.Penalties
                     return;
                 }
 
-                await Send.ResponseAsync(result.Id!.Value, 201, cancellation: ct);
+                await Send.OkAsync(new { message = "Penalty deactivated." }, cancellation: ct);
             }
             catch (Exception exception)
             {
-                Logger.LogError(exception, "Penalty creation failed for {PenaltyCode}", request.PenaltyCode);
+                Logger.LogError(exception, "Penalty deactivation failed for {ItemId}", request.Id);
                 await Send.ErrorsAsync(500, ct);
             }
         }

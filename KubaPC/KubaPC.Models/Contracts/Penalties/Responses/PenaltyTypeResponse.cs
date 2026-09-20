@@ -1,4 +1,4 @@
-﻿namespace KubaPC.Models.Contracts.Contracts.Penalties.Responses
+﻿namespace KubaPC.Models.Contracts.Penalties.Responses
 {
     public class PenaltyTypeResponse
     {

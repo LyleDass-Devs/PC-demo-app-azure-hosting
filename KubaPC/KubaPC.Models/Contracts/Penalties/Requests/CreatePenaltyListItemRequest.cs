@@ -1,8 +1,8 @@
-﻿namespace KubaPC.Models.Contracts.Contracts.Penalties.Requests
+﻿namespace KubaPC.Models.Contracts.Penalties.Requests
 {
-    public class UpdatePenaltyListItemRequest
+    public class CreatePenaltyListItemRequest
     {
-        public Guid Id { get; set; }
+        public Guid ContractId { get; set; }
         public string PenaltyCode { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string PenaltyType { get; set; } = string.Empty;
