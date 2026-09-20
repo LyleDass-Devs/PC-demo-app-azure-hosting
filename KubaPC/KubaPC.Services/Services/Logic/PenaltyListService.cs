@@ -1,7 +1,7 @@
 ﻿using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
-using KubaPC.Models.Contracts.Penalties.Requests;
-using KubaPC.Models.Contracts.Penalties.Responses;
+using KubaPC.Models.Contracts.Contracts.Penalties.Requests;
+using KubaPC.Models.Contracts.Contracts.Penalties.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
 using KubaPC.Services.Services.Interfaces;

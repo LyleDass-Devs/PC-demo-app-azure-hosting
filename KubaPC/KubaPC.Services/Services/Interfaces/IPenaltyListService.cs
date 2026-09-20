@@ -1,6 +1,6 @@
 ﻿using KubaPC.Models.Contracts.Common.Responses;
-using KubaPC.Models.Contracts.Penalties.Requests;
-using KubaPC.Models.Contracts.Penalties.Responses;
+using KubaPC.Models.Contracts.Contracts.Penalties.Requests;
+using KubaPC.Models.Contracts.Contracts.Penalties.Responses;
 using KubaPC.Models.Internal;
 
 namespace KubaPC.Services.Services.Interfaces

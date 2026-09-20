@@ -1,4 +1,4 @@
-﻿namespace KubaPC.Models.Contracts.Penalties.Requests
+﻿namespace KubaPC.Models.Contracts.Contracts.Penalties.Requests
 {
     public class DeactivatePenaltyListItemRequest
     {
