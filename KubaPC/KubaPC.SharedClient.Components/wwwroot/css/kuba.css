@@ -236,21 +236,24 @@ body:has(.mud-drawer--open){overflow:hidden}
 .check b{display:block;font-weight:600;font-size:14px}
 .check small{display:block;color:var(--ink-2);font-size:12px;line-height:1.4;margin-top:2px}
 .num{font-variant-numeric:tabular-nums;text-align:right}
-/* Catalogue sections: an indigo rail with one yellow marker, the same move as the duty rail turned on its side. */
-.sections{position:relative;display:grid;grid-template-columns:repeat(var(--section-count,5),1fr);gap:0;margin:0 0 18px;padding:6px;background:var(--kuba-indigo);border-radius:14px;box-shadow:0 10px 28px -16px rgba(39,34,81,.55)}
-.sections__marker{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px) / var(--section-count,5));background:var(--kuba-yellow);border-radius:10px;transform:translateX(calc(var(--active-index,0) * 100%));transition:transform 380ms cubic-bezier(.22,1,.36,1);pointer-events:none}
-.sections__item{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:9px;min-height:50px;padding:0 12px;overflow:hidden;border:0;background:none;border-radius:10px;font:600 14px var(--font);color:rgba(255,255,255,.72);cursor:pointer;white-space:nowrap;transition:color 220ms var(--ease-state),transform 220ms var(--ease-state)}
-.sections__item svg{width:18px;height:18px;flex:none;transition:transform 380ms cubic-bezier(.22,1,.36,1)}
-.sections__item:hover{color:#fff}
-.sections__item:hover svg{transform:translateY(-1px)}
-.sections__item[aria-selected="true"]{color:var(--kuba-indigo)}
-.sections__item[aria-selected="true"] svg{transform:scale(1.08)}
-.sections__item:focus-visible{outline:2px solid var(--kuba-yellow);outline-offset:-4px}
-.sections__soon{flex:none;font:600 10px/1 var(--font);letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border-radius:999px;background:rgba(255,255,255,.14);color:rgba(255,255,255,.8)}
-.sections__item[aria-selected="true"] .sections__soon{background:rgba(39,34,81,.14);color:var(--kuba-indigo)}
-@media (max-width:959px){.sections{display:flex;overflow-x:auto;scrollbar-width:none;padding:6px;--section-w:212px}.sections::-webkit-scrollbar{display:none}.sections__item{flex:0 0 var(--section-w);width:var(--section-w);padding:0 8px}.sections__marker{width:var(--section-w);transform:translateX(calc(var(--active-index,0) * var(--section-w)))}}
-@media (max-width:599px){.sections{--section-w:150px}.sections__item{min-height:46px;font-size:13px;gap:7px}.sections__item svg{width:16px;height:16px}.sections__soon{display:none}.sections__item:not([aria-selected="true"]) .sections__label{opacity:.9}}
+/* Catalogue sections: a white tile-strip with one indigo pill that slides between sections. Quiet at rest, clear in motion. */
+.sections{position:relative;display:grid;grid-template-columns:repeat(var(--section-count,5),1fr);margin:0 0 18px;padding:5px;background:var(--tile);border:1px solid var(--tile-edge);border-radius:14px}
+.sections__marker{position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px) / var(--section-count,5));background:var(--kuba-indigo);border-radius:10px;transform:translateX(calc(var(--active-index,0) * 100%));transition:transform 380ms cubic-bezier(.22,1,.36,1);pointer-events:none}
+.sections__item{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 12px;overflow:hidden;border:0;background:none;border-radius:10px;font:500 14px var(--font);color:var(--ink-2);cursor:pointer;white-space:nowrap;transition:color 260ms var(--ease-state),background 200ms var(--ease-state)}
+.sections__item svg{width:17px;height:17px;flex:none;color:var(--ink-placeholder);transition:color 260ms var(--ease-state),transform 380ms cubic-bezier(.22,1,.36,1)}
+.sections__item:hover{color:var(--ink);background:var(--board)}
+.sections__item:hover svg{color:var(--ink-2);transform:translateY(-1px)}
+.sections__item[aria-selected="true"]{color:#fff;font-weight:600;background:none}
+.sections__item[aria-selected="true"] svg{color:var(--kuba-yellow);transform:scale(1.06)}
+.sections__item:focus-visible{outline:2px solid var(--kuba-indigo);outline-offset:-3px}
+.sections__soon{flex:none;font:600 10px/1 var(--font);letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border-radius:999px;background:var(--board);color:var(--ink-2);border:1px solid var(--tile-edge)}
+.sections__item[aria-selected="true"] .sections__soon{background:rgba(255,255,255,.14);color:#fff;border-color:transparent}
+@media (max-width:959px){.sections{display:flex;overflow-x:auto;scrollbar-width:none;padding:5px;--section-w:212px}.sections::-webkit-scrollbar{display:none}.sections__item{flex:0 0 var(--section-w);width:var(--section-w);padding:0 8px}.sections__marker{width:var(--section-w);transform:translateX(calc(var(--active-index,0) * var(--section-w)))}}
+@media (max-width:599px){.sections{--section-w:176px}.sections__item{min-height:44px;font-size:13px;gap:7px}.sections__item svg{width:16px;height:16px}.sections__soon{display:none}}
 @media (prefers-reduced-motion:reduce){.sections__marker,.sections__item,.sections__item svg{transition:none}}
+/* Native pickers and popovers must never run past a phone's edge. */
+select.kselect{max-width:100%}
+.mud-popover{max-width:calc(100vw - 24px)}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .field-row--3{grid-template-columns:1fr 1fr 1fr}
 .form-section{font:700 15px/1.3 var(--font);color:var(--kuba-indigo);margin:18px 0 10px}

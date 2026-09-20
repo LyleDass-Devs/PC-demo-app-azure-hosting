@@ -9,7 +9,7 @@
 
 <BackLink Fallback="@ClientRoutes.HOME" />
 
-<nav class="sections on-indigo" role="tablist" aria-label="Catalogue sections" style="@($"--section-count:{SECTIONS.Length};--active-index:{activeIndex}")">
+<nav class="sections" role="tablist" aria-label="Catalogue sections" style="@($"--section-count:{SECTIONS.Length};--active-index:{activeIndex}")">
     <span class="sections__marker" aria-hidden="true"></span>
     @for (int i = 0; i < SECTIONS.Length; i++)
     {
