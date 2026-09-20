@@ -34,6 +34,10 @@ else if (Active.Label == DNO_REASONS)
 {
     <DnoReasonBoard />
 }
+else if (Active.Label == REFERENCE_URLS)
+{
+    <ReferenceUrlBoard />
+}
 else
 {
     <div class="stray">
@@ -45,6 +49,7 @@ else
     private const string PENALTY_LISTS = "Penalty lists";
     private const string ESCALATION = "Escalation parameters";
     private const string DNO_REASONS = "DNO reasons";
+    private const string REFERENCE_URLS = "Reference URLs";
 
     private sealed record Section(string Label, string Icon, bool IsLive);
 
@@ -53,7 +58,7 @@ else
         new(PENALTY_LISTS, KubaIcons.Regular.WarningCircle, true),
         new(ESCALATION, KubaIcons.Regular.ChartBar, true),
         new(DNO_REASONS, KubaIcons.Regular.XCircle, true),
-        new("Reference URLs", KubaIcons.Regular.ArrowUpRight, false),
+        new(REFERENCE_URLS, KubaIcons.Regular.ArrowUpRight, true),
         new("Income fields", KubaIcons.Regular.Receipt, false)
     };
 

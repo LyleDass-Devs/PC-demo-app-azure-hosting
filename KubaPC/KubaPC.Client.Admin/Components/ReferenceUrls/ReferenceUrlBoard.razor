@@ -1,0 +1,109 @@
+﻿@inject IReferenceUrlClientService ReferenceUrlClient
+@inject ICurrentUserService CurrentUser
+@inject INotificationService Notifications
+
+<div class="focus-card" style="max-width:720px;margin:0 auto">
+    <p class="lede">These two links print on Form D so the reader can check where the month's fuel price and CPI figures came from.</p>
+
+    @if (!canEdit)
+    {
+        <p class="readonly-note" style="margin:0 0 16px">Only a SuperAdmin can change these links.</p>
+    }
+
+    @foreach (LinkRow row in rows)
+    {
+        <BoardTile Title="@row.Key" Class="link-tile">
+            <div class="status-line" role="alert">@row.Error</div>
+
+            <div class="field">
+                <label for="@row.InputId">Address</label>
+                <input id="@row.InputId" class="kinput @(row.FieldError is null ? "" : "invalid")" type="url" inputmode="url" spellcheck="false"
+                       @bind="row.Value" @bind:event="oninput" disabled="@(!canEdit)" placeholder="https://" />
+                @if (row.FieldError is string fe) { <span class="field__error">@fe</span> }
+                <span class="field__hint">
+                    @if (row.SavedValue is not null)
+                    {
+                        <a href="@row.SavedValue" target="_blank" rel="noopener" class="cell-link">Open the saved link</a>
+                        @if (row.SavedAt != "Never")
+                        {
+                            <text> · saved @row.SavedAt</text>
+                        }
+                    }
+                    else
+                    {
+                        <text>Not captured yet.</text>
+                    }
+                </span>
+            </div>
+
+            @if (canEdit)
+            {
+                <div class="kdrawer__actions" style="margin-top:4px">
+                    <KubaButton Text="Save" Small="true" Icon="@KubaIcons.Regular.Check" Busy="row.Busy" Disabled="@(row.Value.Trim() == (row.SavedValue ?? string.Empty))" OnClick="() => Save(row)" />
+                </div>
+            }
+        </BoardTile>
+    }
+</div>
+
+@code {
+    private sealed class LinkRow
+    {
+        public string Key = string.Empty;
+        public string Value = string.Empty;
+        public string? SavedValue;
+        public string SavedAt = string.Empty;
+        public string? Error, FieldError;
+        public bool Busy;
+        public string InputId => "link-" + Key.ToLowerInvariant().Replace(' ', '-');
+    }
+
+    private readonly List<LinkRow> rows = new();
+    private bool canEdit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await CurrentUser.Get();
+        canEdit = user?.Roles.Contains("SuperAdmin") == true;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        rows.Clear();
+        var result = await ReferenceUrlClient.GetAll();
+
+        foreach (ReferenceUrlResponse link in result.Data ?? new List<ReferenceUrlResponse>())
+        {
+            rows.Add(new LinkRow
+            {
+                Key = link.UrlKey,
+                Value = link.UrlValue ?? string.Empty,
+                SavedValue = link.UrlValue,
+                SavedAt = RelativeTime.Describe(link.ModifiedAt)
+            });
+        }
+    }
+
+    private async Task Save(LinkRow row)
+    {
+        row.Error = row.FieldError = null;
+        row.Busy = true;
+
+        var result = await ReferenceUrlClient.Save(new SaveReferenceUrlRequest { UrlKey = row.Key, UrlValue = row.Value });
+
+        row.Busy = false;
+
+        if (!result.IsSuccess)
+        {
+            row.FieldError = result.ValidationErrors.TryGetValue("urlValue", out string[]? messages) ? messages.FirstOrDefault() : null;
+            row.Error = row.FieldError is null ? result.ErrorMessage : null;
+            return;
+        }
+
+        row.SavedValue = row.Value.Trim();
+        row.Value = row.SavedValue;
+        row.SavedAt = "just now";
+        Notifications.Notify(NotificationLevel.Success, $"{row.Key} saved", row.SavedValue);
+    }
+}
