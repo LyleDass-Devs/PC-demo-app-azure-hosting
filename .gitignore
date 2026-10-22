@@ -70,3 +70,10 @@ CMakeCache.txt
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Documentation and tool working files stay local
+*.md
+.claude/
+.impeccable/
+.playwright-mcp/
+docs/superpowers/
