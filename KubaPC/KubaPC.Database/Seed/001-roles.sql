@@ -1,14 +1,3 @@
--- =========================================================================
---  Seed - the six application roles, exactly as the specification names
---  them (spec User Roles section; KubaOps A.26.1).
---
---  "Operator Admin" is deliberately absent: the spec is explicit that it is
---  not a seventh role but Admin in its capacity as scoped to particular
---  operators via account_operators (spec Terminology; Form G1 RBAC note).
---
---  Safe to re-run: inserts only what is missing.
--- =========================================================================
-
 INSERT INTO roles (role_name, role_description)
 SELECT v.role_name, v.role_description
 FROM (VALUES

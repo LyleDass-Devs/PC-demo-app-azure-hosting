@@ -1,27 +1,3 @@
--- =========================================================================
---  008 - Views: the forms as queries
---
---  The forms are mostly presentations of data that already exists. Where
---  the spec says a figure is "calculated live" until approval, that live
---  calculation is a view here; the approval snapshot tables (form_c_records,
---  form_a_records) freeze the same figures permanently.
---
---  CREATE OR REPLACE VIEW makes every statement safely re-runnable UP TO
---  script 009. ONCE 010 HAS RUN, DO NOT RE-RUN THIS FILE: 010 supersedes
---  v_form_e, v_form_d, v_form_c and v_form_bh_ledger, and drops two
---  form_bh_records columns this file still references - a re-run here
---  would partially revert the fixes and then error mid-file (first at
---  v_form_c, whose appended column CREATE OR REPLACE cannot drop).
---  Scripts are forward-only once a later script has changed the same
---  objects.
---
---  Run after 007.
--- =========================================================================
-
--- Form E (live): the Amount for Escalation.
--- Per A.13.1: operated kilometres at the operated rate, less approved
--- non-refundable penalties, plus standing kilometres at the standing rate.
--- The rate row picked is the one in force on the certificate period.
 CREATE OR REPLACE VIEW v_form_e AS
 SELECT
     pc.id                                   AS payment_certificate_id,
@@ -69,11 +45,6 @@ LEFT JOIN LATERAL (
 ) pen ON TRUE
 WHERE pc.is_active;
 
-COMMENT ON VIEW v_form_e IS
-    'The live Form E calculation (A.13.1). Approved formula-priced penalties with no rand amount contribute nothing to approved_penalties_minor - the spec''s own recorded gap. On approval these figures are frozen into form_c_records; this view keeps showing the live values.';
-
-
--- Form D (live): the escalation factor per certificate, with its inputs.
 CREATE OR REPLACE VIEW v_form_d AS
 SELECT
     pc.id                    AS payment_certificate_id,
@@ -99,11 +70,6 @@ LEFT JOIN escalation_records er
     ON er.payment_certificate_id = pc.id AND er.is_active
 WHERE pc.is_active;
 
-COMMENT ON VIEW v_form_d IS
-    'Form D: per-certificate escalation inputs and the stored factor. The factor itself is calculated and written by the application (6 decimals, A.11), not by this view - a view recomputing it could silently disagree with the stored value.';
-
-
--- Form C: snapshot when approved, live otherwise (A.13, confirmed).
 CREATE OR REPLACE VIEW v_form_c AS
 SELECT
     pc.id                              AS payment_certificate_id,
@@ -127,11 +93,6 @@ LEFT JOIN escalation_records er
     ON er.payment_certificate_id = pc.id AND er.is_active
 WHERE pc.is_active;
 
-COMMENT ON VIEW v_form_c IS
-    'Form C month row: the permanent snapshot for approved certificates, the live calculation otherwise. is_snapshot says which one you are looking at. The Accumulated Total column belongs to the service layer (a window over approved months), not this row-level view.';
-
-
--- Form G2: approved penalties grouped by code and capturing role (UC7).
 CREATE OR REPLACE VIEW v_form_g2_summary AS
 SELECT
     p.payment_certificate_id,
@@ -147,11 +108,6 @@ WHERE p.capture_status = 'Approved'
   AND p.is_active
 GROUP BY p.payment_certificate_id, p.penalty_code, pli.description;
 
-COMMENT ON VIEW v_form_g2_summary IS
-    'Form G2 upper section (UC7): approved penalties per certificate grouped by code, counted by capturing role. The refundable-amounts lower section is form_g2_refundable_amounts directly.';
-
-
--- Form B&H ledger with its certificate context (UC10).
 CREATE OR REPLACE VIEW v_form_bh_ledger AS
 SELECT
     c.operator_id,
@@ -177,25 +133,6 @@ JOIN payment_certificates pc ON pc.id = bh.payment_certificate_id
 JOIN contracts c             ON c.id = pc.contract_id
 WHERE bh.is_active AND pc.is_active;
 
-COMMENT ON VIEW v_form_bh_ledger IS
-    'Form B&H ledger rows with contract and certificate context. DELIBERATELY EXCLUDES budget_minor: the budget is visible to DOT alone (A.7), so it must never travel through the general-purpose view - the DOT screen queries the table directly under its own authorisation check.';
-
-
--- =========================================================================
---  Landing grids
---
---  Every section where values are editable opens on a grid: the key
---  figures, and who last changed each row. The row's Edit button then
---  opens the detail page. These views feed those grids - they resolve the
---  modified_by / created_by identifiers to account names so the grid can
---  say "R 4 000.00 - last changed by T. Ndlovu, 2026-08-02" without every
---  screen repeating the same joins.
---
---  last_changed_by/at prefer the most recent edit and fall back to the
---  creation, so a never-edited row still shows who made it.
--- =========================================================================
-
--- Penalty catalogue grid (Admin's landing page for UC3).
 CREATE OR REPLACE VIEW v_grid_penalty_list_items AS
 SELECT
     pli.id,
@@ -215,11 +152,6 @@ JOIN contracts c  ON c.id = pli.contract_id
 LEFT JOIN accounts am ON am.id = pli.modified_by
 LEFT JOIN accounts ac ON ac.id = pli.created_by;
 
-COMMENT ON VIEW v_grid_penalty_list_items IS
-    'Landing grid for the penalty catalogue: amounts and who last changed each item. Includes inactive rows so the grid can offer a show-retired filter; the capture screens must still filter is_active themselves.';
-
-
--- Contract rates grid.
 CREATE OR REPLACE VIEW v_grid_contract_rates AS
 SELECT
     cr.id,
@@ -237,11 +169,6 @@ JOIN contracts c  ON c.id = cr.contract_id
 LEFT JOIN accounts am ON am.id = cr.modified_by
 LEFT JOIN accounts ac ON ac.id = cr.created_by;
 
-COMMENT ON VIEW v_grid_contract_rates IS
-    'Landing grid for contract rates. Shows the full dated history per contract; is_current marks the row in force.';
-
-
--- Escalation parameters grid.
 CREATE OR REPLACE VIEW v_grid_escalation_parameters AS
 SELECT
     ep.id,
@@ -262,11 +189,6 @@ JOIN contracts c  ON c.id = ep.contract_id
 LEFT JOIN accounts am ON am.id = ep.modified_by
 LEFT JOIN accounts ac ON ac.id = ep.created_by;
 
-COMMENT ON VIEW v_grid_escalation_parameters IS
-    'Landing grid for Form D parameters (UC15): the weights and base values per contract, and who last changed them.';
-
-
--- Penalty captures grid (the Penalties tab landing page, UC4/5/6).
 CREATE OR REPLACE VIEW v_grid_penalty_captures AS
 SELECT
     p.id,
@@ -291,11 +213,6 @@ LEFT JOIN accounts am ON am.id = p.modified_by
 LEFT JOIN accounts ac ON ac.id = p.created_by
 WHERE p.is_active;
 
-COMMENT ON VIEW v_grid_penalty_captures IS
-    'Landing grid for the Penalties tab: every capture on a certificate with its status, amount (catalogue amount until approval fixes effective_rand_amount_minor), and who last changed it. Soft-deleted rows excluded - they are visible through the audit log, not the grid.';
-
-
--- Form G2 refundable amounts grid.
 CREATE OR REPLACE VIEW v_grid_form_g2_amounts AS
 SELECT
     g2.id,
@@ -312,6 +229,3 @@ JOIN payment_certificates pc ON pc.id = g2.payment_certificate_id
 LEFT JOIN accounts am ON am.id = g2.modified_by
 LEFT JOIN accounts ac ON ac.id = g2.created_by
 WHERE g2.is_active;
-
-COMMENT ON VIEW v_grid_form_g2_amounts IS
-    'Landing grid for Form G2 refundable amounts: the captured Rand values per type combination and who last changed them.';
