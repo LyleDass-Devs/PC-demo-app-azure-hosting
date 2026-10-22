@@ -255,7 +255,6 @@ namespace KubaPC.Services.Services.Logic
             return OperationResult.Success();
         }
 
-        // Empty strings from a form become NULL so optional columns stay honest.
         private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
         private async Task<bool> IsContractNumberTaken(string contractNumber, Guid? exceptContractId)

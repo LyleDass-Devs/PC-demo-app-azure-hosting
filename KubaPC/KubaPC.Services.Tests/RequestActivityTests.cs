@@ -28,7 +28,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public void Dispose_Twice_DoesNotGoNegative()
         {
-            // A finally block and an explicit call can both dispose the same token.
+
             RequestActivity activity = new();
             IDisposable token = activity.Begin();
 

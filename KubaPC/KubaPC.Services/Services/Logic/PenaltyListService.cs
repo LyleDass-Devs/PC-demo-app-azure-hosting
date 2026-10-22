@@ -21,8 +21,6 @@ namespace KubaPC.Services.Services.Logic
             ["operatorName"] = "o.operator_name"
         };
 
-        // Script 009 makes the money catalogues read-only for the application role. A write elevates
-        // to the administrator role for exactly one transaction, so nothing outside these services can.
         private const string ELEVATE = "BEGIN; SET LOCAL ROLE kubapc_administrator; ";
         private const string COMMIT = "; COMMIT;";
 

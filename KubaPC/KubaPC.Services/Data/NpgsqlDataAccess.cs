@@ -33,7 +33,6 @@ namespace KubaPC.Services.Data
             _connectionString = connectionString;
         }
 
-        //select returning multiple rows
         public async Task<List<T>> QueryAsync<T>(string sql, object? parameters = null)
         {
             await using var connection = new NpgsqlConnection(_connectionString);
@@ -42,14 +41,12 @@ namespace KubaPC.Services.Data
             return rows.AsList();
         }
 
-        //select returning one row , if null = not found
         public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters = null)
         {
             await using var connection = new NpgsqlConnection(_connectionString);
             return await connection.QuerySingleOrDefaultAsync<T>(sql, parameters, commandType: CommandType.Text);
         }
 
-        // Runs an INSERT or UPDATE or DELETE and returns the number of rows affected.
         public async Task<int> ExecuteAsync(string sql, object? parameters = null)
         {
             await using var connection = new NpgsqlConnection(_connectionString);

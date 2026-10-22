@@ -39,8 +39,6 @@ namespace KubaPC.Services.Tests
             public string FullName { get; set; } = string.Empty;
         }
 
-        // ---------- success ----------
-
         [Fact]
         public async Task Get_Success_ReturnsDeserialisedData()
         {
@@ -57,7 +55,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public async Task Get_ResponseUsesCamelCase_BindsToPascalCaseProperty()
         {
-            // The same class of silent mapping failure that bit the database layer.
+
             Harness harness = Build(HttpStatusCode.OK, "{\"fullName\":\"Case Check\"}");
 
             ApiResult<Person> result = await harness.Service.Get<Person>("/accounts/current");
@@ -86,8 +84,6 @@ namespace KubaPC.Services.Tests
             Assert.Null(harness.Handler.LastRequest!.Headers.Authorization);
         }
 
-        // ---------- validation ----------
-
         [Fact]
         public async Task Post_ValidationFailure_ExposesErrorsByField()
         {
@@ -108,7 +104,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public async Task Post_GeneralError_IsReportedAsMessageNotAsAField()
         {
-            // A refusal that belongs to no input must not be bound to one.
+
             const string body = "{\"statusCode\":409,\"message\":\"One or more errors occurred!\","
                               + "\"errors\":{\"generalErrors\":[\"An active account already exists for that address.\"]}}";
 
@@ -121,8 +117,6 @@ namespace KubaPC.Services.Tests
             Assert.False(result.HasValidationErrors);
             Assert.Equal("An active account already exists for that address.", result.ErrorMessage);
         }
-
-        // ---------- unauthorised ----------
 
         [Fact]
         public async Task Get_Unauthorised_WithToken_ClearsTokenAndGoesToLogin()
@@ -140,7 +134,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public async Task Post_Unauthorised_WithoutToken_IsARejectedSignInNotAnExpiredSession()
         {
-            // A failed login must leave the user on the form with its own message.
+
             Harness harness = Build(HttpStatusCode.Unauthorized, "");
 
             ApiResult result = await harness.Service.Post("/authentication/authenticate", new { });
@@ -150,8 +144,6 @@ namespace KubaPC.Services.Tests
             Assert.Null(harness.Navigation.NavigatedTo);
             Assert.Contains("password", result.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
         }
-
-        // ---------- forbidden ----------
 
         [Fact]
         public async Task Get_PasswordChangeRequired_GoesToChangePassword()
@@ -180,8 +172,6 @@ namespace KubaPC.Services.Tests
             Assert.Contains("permission", result.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
         }
 
-        // ---------- failures that are not the API's fault ----------
-
         [Fact]
         public async Task Get_ServerUnreachable_ReportsStatusZero()
         {
@@ -197,7 +187,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public async Task Get_ErrorBodyIsNotJson_KeepsTheStatusCode()
         {
-            // A proxy or load balancer can answer with HTML.
+
             Harness harness = Build(HttpStatusCode.BadGateway, "<html><body>502 Bad Gateway</body></html>");
 
             ApiResult<Person> result = await harness.Service.Get<Person>("/accounts/current");
@@ -217,8 +207,6 @@ namespace KubaPC.Services.Tests
             Assert.False(result.IsSuccess);
             Assert.Contains("could not be read", result.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
         }
-
-        // ---------- verbs ----------
 
         [Fact]
         public async Task Put_SendsPutWithJsonBody()

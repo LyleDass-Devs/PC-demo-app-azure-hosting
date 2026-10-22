@@ -37,7 +37,6 @@ namespace KubaPC.Services.Services.Logic
                                  WHERE lower(email_address) = lower(@EmailAddress)
                                  AND is_active";
 
-
             return await _dataAccess.QuerySingleOrDefaultAsync<AccountCredentialsModel>(sql, new { EmailAddress = emailAddress });
         }
 
@@ -63,15 +62,13 @@ namespace KubaPC.Services.Services.Logic
 
         public async Task<CreateAccountResult> CreateAccount(CreateAccountRequest request, Guid createdBy)
         {
-            //check acc exist
+
             AccountCredentialsModel? existingAccount = await SelectActiveByEmail(request.EmailAddress);
 
             if (existingAccount != null)
             {
                 return new CreateAccountResult(null, $"An active account already exists for {request.EmailAddress}.");
             }
-
-            //check role exist and is valid
 
             const string roleCountSql = @"SELECT count(*)
                                           FROM roles
@@ -95,7 +92,6 @@ namespace KubaPC.Services.Services.Logic
                        FROM new_account
                        JOIN roles r ON r.role_name = ANY(@RoleNames) AND r.is_active)
                      SELECT id FROM new_account";
-
 
             Guid id = await _dataAccess.QuerySingleOrDefaultAsync<Guid>(sql, new
             {
@@ -232,7 +228,6 @@ namespace KubaPC.Services.Services.Logic
             List<string> currentRoleNames = await SelectRoleNames(request.Id);
             bool areRolesChanging = !currentRoleNames.OrderBy(name => name).SequenceEqual(request.RoleNames.Distinct().OrderBy(name => name));
 
-
             if (areRolesChanging && request.Id == modifiedBy)
             {
                 return AccountOperationResult.Failure("You cannot change the roles on your own account.");
@@ -336,7 +331,6 @@ namespace KubaPC.Services.Services.Logic
                 }
             }
 
-            // Same replace-the-set shape as roles: remove what is not wanted, restore what was, add what is new.
             const string sql = @"WITH target_account AS (
                                    SELECT id FROM accounts WHERE id = @AccountId AND is_active
                                  ),

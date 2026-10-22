@@ -38,7 +38,6 @@ namespace KubaPC.Services.Services.Logic
                 return OperationResult.Failure("The contract is not active.");
             }
 
-            // One live row per contract: update it if it exists, otherwise insert. Both inside one elevated transaction.
             const string sql = ELEVATE + @"
                 WITH updated AS (
                     UPDATE escalation_parameters

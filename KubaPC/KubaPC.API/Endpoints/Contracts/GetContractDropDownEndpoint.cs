@@ -19,7 +19,6 @@ namespace KubaPC.API.Endpoints.Contracts
         {
             Get("/contracts/dropdown");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
-            Policies("Admin");
         }
 
         public override async Task HandleAsync(ContractDropDownRequest request, CancellationToken ct)

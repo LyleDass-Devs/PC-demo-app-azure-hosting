@@ -6,10 +6,10 @@ using KubaPC.Services.Data;
 
 namespace KubaPC.Services.Services
 {
-    
+
     public abstract class BaseService
     {
-        // Audit columns the database or the update logic own - excluded from generated SQL by default.
+
         private static readonly HashSet<string> DEFAULT_COLUMNS = new()
         {
             "IsActive",
@@ -38,7 +38,6 @@ namespace KubaPC.Services.Services
             return parameters;
         }
 
-        // tableName must always be a hardcoded literal, never input.
         protected static string CreateSqlInsert<T>(T model, string tableName, bool returningId = false, bool includeId = false, bool includeAuditColumns = false)
         {
             List<string> names = ListMappedProperties(model, includeId, includeAuditColumns)
@@ -71,7 +70,6 @@ namespace KubaPC.Services.Services
             return $"UPDATE {tableName} SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy WHERE id = @Id";
         }
 
-        // Not callable now: kubapc_app holds no DELETE right on any table. Kept so the option exists.
         protected static string CreateSqlHardDelete(string tableName)
         {
             return $"DELETE FROM {tableName} WHERE id = @Id";
@@ -91,7 +89,6 @@ namespace KubaPC.Services.Services
                 .ToList();
         }
 
-        
         private static string ToSnakeCase(string propertyName)
         {
             return Regex.Replace(propertyName, "(?<=[a-z0-9])[A-Z]", "_$0").ToLowerInvariant();

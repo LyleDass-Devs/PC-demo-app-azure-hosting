@@ -7,7 +7,7 @@ namespace KubaPC.Services.Helpers
 {
     public class PasswordHelper : IPasswordHelper
     {
-        private const int WORK_FACTOR = 12;  //lyle maybe remove for manualy user entry
+        private const int WORK_FACTOR = 12;
 
         public string Hash(string password)
         {

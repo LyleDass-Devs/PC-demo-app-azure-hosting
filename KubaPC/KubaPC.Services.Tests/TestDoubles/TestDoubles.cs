@@ -3,10 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace KubaPC.Services.Tests.TestDoubles
 {
-    /// <summary>
-    /// Returns a caller-supplied response without touching the network, and
-    /// records the request so a test can assert what was sent.
-    /// </summary>
+
     public class StubHttpMessageHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, HttpResponseMessage> respond;
@@ -18,10 +15,6 @@ namespace KubaPC.Services.Tests.TestDoubles
 
         public HttpRequestMessage? LastRequest { get; private set; }
 
-        /// <summary>
-        /// The request body, read here because the caller disposes the request as
-        /// soon as the call returns.
-        /// </summary>
         public string? LastRequestBody { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -37,7 +30,6 @@ namespace KubaPC.Services.Tests.TestDoubles
         }
     }
 
-    /// <summary>Holds a token in memory and records whether it was cleared.</summary>
     public class TestTokenStore : ITokenStore
     {
         public TestTokenStore(string? token = null)
@@ -65,7 +57,6 @@ namespace KubaPC.Services.Tests.TestDoubles
         }
     }
 
-    /// <summary>Records where the application tried to navigate instead of navigating.</summary>
     public class TestNavigationManager : NavigationManager
     {
         public TestNavigationManager()

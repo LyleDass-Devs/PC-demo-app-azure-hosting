@@ -26,7 +26,7 @@ namespace KubaPC.API
 
         public static void ConfigureContainer(ContainerBuilder builder)
         {
-            // Register different named services directly with Autofac
+
             builder.RegisterModule(new Factories.Services());
         }
 
@@ -40,7 +40,7 @@ namespace KubaPC.API
                 throw new InvalidOperationException("AppSettings:Secret is not configured.");
             }
 
-            builder.Services.AddSingleton(appSettings);   // lyle - Autofac handles other services,helpers, if named differntly add service here
+            builder.Services.AddSingleton(appSettings);
             builder.Services.AddHttpContextAccessor();
 
             byte[] key = Encoding.ASCII.GetBytes(appSettings.Secret);
@@ -71,7 +71,7 @@ namespace KubaPC.API
 
         public static void BuildAPIAuthorization(this WebApplicationBuilder builder)
         {
-            builder.Services.AddAuthorization(o => 
+            builder.Services.AddAuthorization(o =>
             {
                 o.AddPolicy("SuperAdmin", p => p.RequireRole("SuperAdmin"));
                 o.AddPolicy("Admin", p => p.RequireRole("SuperAdmin", "Admin"));
@@ -79,6 +79,7 @@ namespace KubaPC.API
                 o.AddPolicy("Monitor", p => p.RequireRole("SuperAdmin", "Monitor"));
                 o.AddPolicy("Authoriser", p => p.RequireRole("SuperAdmin", "Authoriser"));
                 o.AddPolicy("DOT", p => p.RequireRole("SuperAdmin", "DOT"));
+                o.AddPolicy("Capture", p => p.RequireRole("SuperAdmin", "Operator Staff", "Monitor"));
             });
         }
 
@@ -101,7 +102,6 @@ namespace KubaPC.API
                 .SetPreflightMaxAge(TimeSpan.FromMinutes(10)));
             });
         }
-
 
         public static void BuildDatabaseLogging(this WebApplicationBuilder builder)
         {

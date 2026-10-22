@@ -189,7 +189,6 @@ namespace KubaPC.Services.Services.Logic
             return OperationResult.Success();
         }
 
-        // The unique index only covers active rows, so a code can be reused after deactivation.
         private async Task<bool> IsIdSocieteTaken(string idSociete, Guid? exceptOperatorId)
         {
             const string sql = @"SELECT count(*)

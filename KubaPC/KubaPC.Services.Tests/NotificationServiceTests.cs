@@ -32,7 +32,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public void Notify_WithAction_StillAutoDismisses()
         {
-            // A notification the user may need to act on must wait for them.
+
             NotificationService service = new();
 
             service.Notify(NotificationLevel.Info, "Deactivated", null, new NotificationAction("View inactive", () => Task.CompletedTask));

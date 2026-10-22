@@ -24,7 +24,6 @@ namespace KubaPC.API.Validators.Contracts
                 .WithMessage("Enter the branch code, or clear all bank details.");
         }
 
-        // Bank details are optional as a block: none at all, or the four that Form A prints.
         private static bool HasAnyBankDetail(CreateContractRequest x) =>
             !string.IsNullOrWhiteSpace(x.BankName) || !string.IsNullOrWhiteSpace(x.BankBranchName) || !string.IsNullOrWhiteSpace(x.BankBranchCode)
             || !string.IsNullOrWhiteSpace(x.BankAccountName) || !string.IsNullOrWhiteSpace(x.BankAccountNumber) || !string.IsNullOrWhiteSpace(x.BankAccountType);

@@ -8,10 +8,7 @@ namespace KubaPC.Services.Tests
 {
     public class JwtClaimsReaderTests
     {
-        /// <summary>
-        /// Builds a token with the given payload. The signature is not a real one:
-        /// the reader decodes rather than verifies, which is the point of the test.
-        /// </summary>
+
         private static string BuildToken(object payload)
         {
             static string Encode(string value) =>
@@ -43,7 +40,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public void ReadClaims_TokenWithTwoRoles_ReturnsBothRoles()
         {
-            // A multi-role account arrives as a JSON array, not a repeated property.
+
             string token = BuildToken(new { role = new[] { "Monitor", "DOT" } });
 
             List<Claim> claims = JwtClaimsReader.ReadClaims(token);
@@ -95,7 +92,7 @@ namespace KubaPC.Services.Tests
         [Fact]
         public void IsExpired_NoExpiryClaim_ReturnsTrue()
         {
-            // A token we cannot judge is refused rather than trusted.
+
             string token = BuildToken(new { UserId = "abc-123" });
 
             Assert.True(JwtClaimsReader.IsExpired(token));

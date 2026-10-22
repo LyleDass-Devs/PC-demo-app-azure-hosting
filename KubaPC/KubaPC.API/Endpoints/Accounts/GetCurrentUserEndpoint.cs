@@ -26,7 +26,6 @@ namespace KubaPC.API.Endpoints.Accounts
         {
             string emailAddress = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
 
-            // The token carries the name as it was at sign-in; the account row has the current one.
             AccountCredentialsModel? account = await accountService.SelectActiveByEmail(emailAddress);
 
             CurrentUserResponse response = new()

@@ -4,8 +4,6 @@ using KubaPC.Services.Services;
 
 namespace KubaPC.Services.Helpers
 {
-    /// Writes exceptions to the error_logs table. Never throws: a logger
-    /// that can take the application down is worse than a lost log line.
 
     public class LoggingHelper : BaseService, ILoggingHelper
     {
@@ -39,8 +37,7 @@ namespace KubaPC.Services.Helpers
             }
             catch (Exception writeFailure)
             {
-                // Deliberate swallow: the database is down or the insert failed.
-                // Rethrowing would replace the real error with a logging error,
+
                 Console.Error.WriteLine($"error_logs write failed: {writeFailure.Message}");
             }
         }

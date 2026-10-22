@@ -1,6 +1,6 @@
 ﻿namespace KubaPC.Models.Internal
 {
-    // Money lives in the database as integer cents. These two helpers are the only place rands and cents meet.
+
     public static class Money
     {
         private const decimal CENTS_PER_RAND = 100m;

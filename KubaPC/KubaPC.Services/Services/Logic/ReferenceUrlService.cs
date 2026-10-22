@@ -17,7 +17,7 @@ namespace KubaPC.Services.Services.Logic
 
         public async Task<List<ReferenceUrlResponse>> SelectAll()
         {
-            // Every key is listed, with its address when one has been saved, so the screen always shows both rows.
+
             const string sql = @"SELECT k.key_value AS url_key, r.url_value, r.modified_at
                                  FROM url_keys k
                                  LEFT JOIN reference_urls r ON r.url_key = k.key_value AND r.is_active

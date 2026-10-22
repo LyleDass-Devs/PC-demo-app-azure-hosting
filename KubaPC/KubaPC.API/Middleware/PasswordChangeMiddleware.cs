@@ -4,9 +4,9 @@
     {
         private const string PASSWORD_CHANGE_ERROR_CODE = "PasswordChangeRequired";
         private const string CHANGE_PASSWORD_PATH = "/accounts/change-password";
-        // Signing in must always be possible, otherwise a changed password can never produce a fresh token.
+
         private const string AUTHENTICATION_PATH = "/authentication";
-        // Identity lookup is harmless and lets the client show who is signing in.
+
         private const string CURRENT_ACCOUNT_PATH = "/accounts/current";
         private readonly RequestDelegate _next;
 
