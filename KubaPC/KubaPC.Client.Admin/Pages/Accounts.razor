@@ -9,7 +9,7 @@
 
 <BackLink Fallback="@ClientRoutes.HOME" />
 
-<BoardTile Class="tile--flush"> 
+<BoardTile Class="tile--flush">
     <div class="toolbar">
         <div class="search">
             @((MarkupString)KubaIcons.Regular.MagnifyingGlass)
@@ -194,7 +194,6 @@
         await Reload();
     }
 
-    // Reactivation is reversible, so no confirmation: the toast says what happened and where to find them.
     private async Task Reactivate(AccountListResponse item)
     {
         var result = await AccountClient.Reactivate(item.Id);
@@ -218,4 +217,3 @@
     private static string StatusText(AccountListResponse item) => !item.IsActive ? "Deactivated" : item.MustChangePassword ? "Password pending" : "Active";
 
 }
-

@@ -111,7 +111,6 @@
 @code {
     [Parameter] public Guid? ContractId { get; set; }
 
-    
     private List<DropDownResponse> contracts = new();
     private Guid? contractId;
     private bool hasExisting, busy;
@@ -132,7 +131,6 @@
 
     private void OnMonthChanged(Guid? id) => baseMonth = id is null ? 0 : (int)BitConverter.ToUInt32(id.Value.ToByteArray(), 0);
 
-    // numeric columns come back padded to their scale; 0.500000 reads better as 0.5
     private static decimal Trim(decimal value) => value / 1.000000000000000000000000000000000m;
 
     protected override async Task OnInitializedAsync()
@@ -167,7 +165,7 @@
             cpiWeight = Trim(result.Data.CpiWeight);
             baseMonth = result.Data.BaseMonth;
             baseYear = result.Data.BaseYear;
-            labourBaseValue = Trim(result.Data.LabourBaseValue); 
+            labourBaseValue = Trim(result.Data.LabourBaseValue);
             fuelBaseValue = Trim(result.Data.FuelBaseValue);
             cpiBaseValue = Trim(result.Data.CpiBaseValue);
             savedAt = RelativeTime.Describe(result.Data.ModifiedAt);
@@ -180,7 +178,7 @@
     private async Task Save()
     {
         error = null;
-        fieldErrors = new Dictionary<string, string[]>(); 
+        fieldErrors = new Dictionary<string, string[]>();
         busy = true;
 
         var result = await EscalationClient.Save(new SaveEscalationParametersRequest

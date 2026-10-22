@@ -1,0 +1,115 @@
+﻿@inject IPublicHolidayClientService HolidayClient
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(480px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <div class="kdrawer__head">
+            <h2>@(isEdit ? "Edit public holiday" : "New public holiday")</h2>
+            <button class="iconbtn kdrawer__close" type="button" aria-label="Close" @onclick="Close" disabled="@busy"><MudIcon Icon="@KubaIcons.Regular.X" /></button>
+        </div>
+        <p class="lede">Form I counts a route's public holiday frequency on these dates instead of its weekday frequency.</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            <div class="field">
+                <label for="holiday-date">Date</label>
+                <input id="holiday-date" class="kinput @Invalid("holidayDate")" type="date" @bind="holidayDate" @bind:format="yyyy-MM-dd" required />
+                @if (holidayDate is DateOnly chosen)
+                {
+                    <span class="field__hint">@chosen.ToString("dddd, d MMMM yyyy")</span>
+                }
+                @if (FieldError("holidayDate") is string e1) { <span class="field__error">@e1</span> }
+            </div>
+
+            <div class="field">
+                <label for="holiday-name">Name</label>
+                <input id="holiday-name" class="kinput @Invalid("holidayName")" @bind="holidayName" autocomplete="off" placeholder="Heritage Day" required />
+                @if (FieldError("holidayName") is string e2) { <span class="field__error">@e2</span> }
+            </div>
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Add holiday")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool open, isEdit, busy;
+    private Guid editingId;
+    private DateOnly? holidayDate;
+    private string holidayName = string.Empty;
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    public void OpenCreate()
+    {
+        Reset();
+        isEdit = false;
+        open = true;
+        StateHasChanged();
+    }
+
+    public void OpenEdit(PublicHolidayResponse holiday)
+    {
+        Reset();
+        isEdit = true;
+        editingId = holiday.Id;
+        holidayDate = holiday.HolidayDate;
+        holidayName = holiday.HolidayName;
+        open = true;
+        StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        holidayDate = null;
+        holidayName = string.Empty;
+        busy = false;
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private string Invalid(string field) => FieldError(field) is null ? string.Empty : "invalid";
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        var result = isEdit
+            ? await HolidayClient.Update(new UpdatePublicHolidayRequest
+            {
+                Id = editingId,
+                HolidayDate = holidayDate ?? default,
+                HolidayName = holidayName
+            })
+            : (await HolidayClient.Create(new CreatePublicHolidayRequest
+            {
+                HolidayDate = holidayDate ?? default,
+                HolidayName = holidayName
+            })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Holiday updated" : "Holiday added", $"{holidayName} · {holidayDate:d MMMM yyyy}");
+        await OnSaved.InvokeAsync();
+    }
+}

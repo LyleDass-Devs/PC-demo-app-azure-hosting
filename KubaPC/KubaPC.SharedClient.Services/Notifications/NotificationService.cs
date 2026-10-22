@@ -1,10 +1,6 @@
 namespace KubaPC.SharedClient.Services.Notifications
 {
-    /// <summary>
-    /// Keeps the notifications currently on screen. At most three are shown; older ones
-    /// drop off. Every notification dismisses itself after <see cref="LIFETIME"/>; the
-    /// timer pauses while the pointer or keyboard focus is on it, so an action stays reachable.
-    /// </summary>
+
     public class NotificationService : INotificationService
     {
         private const int MAXIMUM_VISIBLE = 3;
@@ -77,7 +73,7 @@ namespace KubaPC.SharedClient.Services.Notifications
             }
             catch (TaskCanceledException)
             {
-                // Held by hover or focus
+
                 return;
             }
 

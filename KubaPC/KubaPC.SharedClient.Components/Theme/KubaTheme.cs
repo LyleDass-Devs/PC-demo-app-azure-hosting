@@ -2,10 +2,7 @@ using MudBlazor;
 
 namespace KubaPC.SharedClient.Components.Theme
 {
-    /// <summary>
-    /// Maps the design tokens in kuba.css onto MudBlazor's theme, so its components
-    /// (grid, drawer, menu) match ours without per-use overrides.
-    /// </summary>
+
     public static class KubaTheme
     {
         private static readonly string[] FONT_FAMILY = { "Geist", "system-ui", "-apple-system", "Segoe UI", "sans-serif" };

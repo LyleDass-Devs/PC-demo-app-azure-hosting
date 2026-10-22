@@ -1,0 +1,178 @@
+﻿@inject IContractRateClientService RateClient
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(520px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <div class="kdrawer__head">
+            <h2>@(isEdit ? "Correct the rate" : "New rate")</h2>
+            <button class="iconbtn kdrawer__close" type="button" aria-label="Close" @onclick="Close" disabled="@busy"><MudIcon Icon="@KubaIcons.Regular.X" /></button>
+        </div>
+        <p class="lede">@(isEdit ? "Only the rate in force can be corrected. Closed rates are what past certificates were priced at." : "The rate in force closes the day before this one starts. Nothing already certified changes.")</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            @if (!isEdit)
+            {
+                <div class="field">
+                    <label for="rate-contract">Contract</label>
+                    <KubaSelect Id="rate-contract" Items="Contracts" @bind-Value="chosenContractId" Placeholder="Choose a contract" AriaLabel="Contract" Disabled="@(ContractId is not null)" Invalid="@(FieldError("contractId") is not null)" />
+                    @if (FieldError("contractId") is string e0) { <span class="field__error">@e0</span> }
+                </div>
+
+                <div class="field">
+                    <label for="rate-vehicle-type">Vehicle type</label>
+                    <KubaSelect Id="rate-vehicle-type" Items="typeItems" Value="vehicleTypeId" ValueChanged="OnVehicleTypeChanged" Placeholder="Choose a vehicle type" AriaLabel="Vehicle type" AllowEmpty="false" Invalid="@(FieldError("vehicleType") is not null)" />
+                    <span class="field__hint">Each class is priced on its own. Form E lists one line per class.</span>
+                    @if (FieldError("vehicleType") is string eType) { <span class="field__error">@eType</span> }
+                </div>
+            }
+            else
+            {
+                <div class="field">
+                    <label>Vehicle type</label>
+                    <span class="field__hint">@vehicleType. A rate keeps the class it was captured for; add a separate rate for another class.</span>
+                </div>
+            }
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="operated-rate">Operated, rand per km</label>
+                    <input id="operated-rate" class="kinput @Invalid("operatedRatePerKm")" type="number" step="0.01" min="0" inputmode="decimal" @bind="operatedRate" placeholder="8.21" required />
+                    @if (FieldError("operatedRatePerKm") is string e1) { <span class="field__error">@e1</span> }
+                </div>
+                <div class="field">
+                    <label for="standing-rate">Standing, rand per km</label>
+                    <input id="standing-rate" class="kinput @Invalid("standingRatePerKm")" type="number" step="0.01" min="0" inputmode="decimal" @bind="standingRate" placeholder="4.93" required />
+                    @if (FieldError("standingRatePerKm") is string e2) { <span class="field__error">@e2</span> }
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="effective-from">Starts on</label>
+                <input id="effective-from" class="kinput @Invalid("effectiveFromDate")" type="date" @bind="effectiveFrom" @bind:format="yyyy-MM-dd" required />
+                <span class="field__hint">Form E prices every kilometre of a month at the rate in force on the first of that month.</span>
+                @if (FieldError("effectiveFromDate") is string e3) { <span class="field__error">@e3</span> }
+            </div>
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Add rate")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter] public Guid? ContractId { get; set; }
+    [Parameter] public List<DropDownResponse> Contracts { get; set; } = new();
+    [Parameter] public List<string> VehicleTypes { get; set; } = new();
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool open, isEdit, busy;
+    private Guid editingId;
+    private Guid? chosenContractId;
+    private string vehicleType = string.Empty;
+    private List<DropDownResponse> typeItems = new();
+    private Guid? vehicleTypeId;
+    private decimal? operatedRate, standingRate;
+    private DateOnly? effectiveFrom;
+    private string? error;
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    protected override void OnParametersSet()
+    {
+        typeItems = VehicleTypes.Select((t, i) => new DropDownResponse { Id = IdFor(i), Value = t }).ToList();
+        vehicleTypeId = typeItems.FirstOrDefault(t => t.Value == vehicleType)?.Id;
+    }
+
+    private static Guid IdFor(int index) => new Guid(index + 1, 0, 0, new byte[8]);
+
+    private void OnVehicleTypeChanged(Guid? id)
+    {
+        vehicleTypeId = id;
+        vehicleType = typeItems.FirstOrDefault(t => t.Id == id)?.Value ?? string.Empty;
+    }
+
+    public void OpenCreate()
+    {
+        Reset();
+        isEdit = false;
+        chosenContractId = ContractId;
+        vehicleType = VehicleTypes.FirstOrDefault() ?? string.Empty;
+        vehicleTypeId = typeItems.FirstOrDefault(t => t.Value == vehicleType)?.Id;
+        effectiveFrom = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1);
+        open = true;
+        StateHasChanged();
+    }
+
+    public void OpenEdit(ContractRateResponse rate)
+    {
+        Reset();
+        isEdit = true;
+        editingId = rate.Id;
+        chosenContractId = rate.ContractId;
+        vehicleType = rate.VehicleType;
+        vehicleTypeId = typeItems.FirstOrDefault(t => t.Value == vehicleType)?.Id;
+        operatedRate = rate.OperatedRatePerKm;
+        standingRate = rate.StandingRatePerKm;
+        effectiveFrom = rate.EffectiveFromDate;
+        open = true;
+        StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        operatedRate = standingRate = null;
+        effectiveFrom = null;
+        chosenContractId = null;
+        vehicleType = string.Empty;
+        vehicleTypeId = null;
+        busy = false;
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private string Invalid(string field) => FieldError(field) is null ? string.Empty : "invalid";
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        var result = isEdit
+            ? await RateClient.Update(new UpdateContractRateRequest
+            {
+                Id = editingId,
+                OperatedRatePerKm = operatedRate ?? 0,
+                StandingRatePerKm = standingRate ?? 0,
+                EffectiveFromDate = effectiveFrom ?? default
+            })
+            : (await RateClient.Create(new CreateContractRateRequest
+            {
+                ContractId = chosenContractId ?? Guid.Empty,
+                VehicleType = vehicleType,
+                OperatedRatePerKm = operatedRate ?? 0,
+                StandingRatePerKm = standingRate ?? 0,
+                EffectiveFromDate = effectiveFrom ?? default
+            })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Rate corrected" : "Rate added", $"{vehicleType} · R {operatedRate:N2} operated · R {standingRate:N2} standing");
+        await OnSaved.InvokeAsync();
+    }
+}

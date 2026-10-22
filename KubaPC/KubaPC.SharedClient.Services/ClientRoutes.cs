@@ -11,8 +11,11 @@ namespace KubaPC.SharedClient.Services
         public const string OPERATORS = "/operators";
         public const string CONTRACTS = "/contracts";
         public const string CATALOGUE = "/catalogue";
+        public const string PENALTY_CAPTURE = "/penalty-capture";
+        public const string PENALTY_REVIEW = "/penalty-review";
+        public const string FORM_F1_CAPTURE = "/form-f1-capture";
+        public const string FORM_F1_REVIEW = "/form-f1-review";
 
-        /// <summary>Contracts always live under their operator.</summary>
         public static string Contracts(Guid operatorId) => $"/operators/{operatorId}/contracts";
         public static string PenaltyList(Guid contractId) => $"/catalogue?contractId={contractId}";
         public const string LOGIN = "/login";
@@ -21,7 +24,6 @@ namespace KubaPC.SharedClient.Services
         public const string ME = "/me";
         public const string CHANGE_PASSWORD_VOLUNTARY = "/me/password";
 
-        /// <summary>A module that has a tile but no screen yet.</summary>
         public static string ComingSoon(string module) => $"/soon/{module}";
     }
 }

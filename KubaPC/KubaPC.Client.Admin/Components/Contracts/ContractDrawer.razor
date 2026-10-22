@@ -154,8 +154,6 @@
     {
         error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
 
-        // An empty date goes as the default value, which the API rejects with the same message as a blank number,
-        // so the person sees every missing field at once instead of one per attempt.
         DateOnly commencement = commencementDate ?? default;
 
         var result = isEdit

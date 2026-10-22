@@ -15,7 +15,7 @@ namespace KubaPC.SharedClient.Services.Storage
 
         public async Task<bool> GetCollapsed()
         {
-            // Storage can be refused (private mode); an unreadable preference is simply the default.
+
             try
             {
                 return await localStorageService.GetItemAsync<bool?>(COLLAPSED_KEY) ?? false;

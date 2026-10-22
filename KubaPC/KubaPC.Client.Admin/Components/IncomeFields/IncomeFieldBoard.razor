@@ -1,0 +1,126 @@
+@inject IContractClientService ContractClient
+@inject IIncomeFieldClientService IncomeFieldClient
+@inject INotificationService Notifications
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <KubaSelect Items="contracts" Value="contractId" ValueChanged="OnContractChanged" Placeholder="Choose a contract" AriaLabel="Contract" />
+        @if (contractId is not null)
+        {
+            <span class="toolbar__count">@(hasExisting ? $"Last saved {savedAt}" : "Using defaults")</span>
+        }
+    </div>
+
+    @if (contractId is null)
+    {
+        <EmptyTile Title="Pick a contract" Message="Each contract decides which income fields the operator may capture on Form B&amp;H." Icon="@KubaIcons.Light.Receipt" />
+    }
+    else
+    {
+        <div class="focus-card" style="max-width:640px;margin:20px auto">
+            <p class="lede">Switched-off fields are hidden from the operator when they capture income. Both are on until you change them.</p>
+
+            <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+            <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+                <h3 class="form-section" style="margin-top:18px">Form B&amp;H income</h3>
+
+                <label class="check">
+                    <input type="checkbox" @bind="privateHiresEnabled" />
+                    <span>
+                        <b>Private hires</b>
+                        <small>Income from private hires the operator ran with contract vehicles.</small>
+                    </span>
+                </label>
+
+                <label class="check">
+                    <input type="checkbox" @bind="dedicatedContractsEnabled" />
+                    <span>
+                        <b>Dedicated contracts</b>
+                        <small>Income from dedicated contract work outside the scheduled service.</small>
+                    </span>
+                </label>
+
+                <div class="kdrawer__actions">
+                    <KubaButton Type="submit" Text="@(hasExisting ? "Save changes" : "Save settings")" Icon="@KubaIcons.Regular.Check" Busy="busy" Disabled="@(!IsChanged)" />
+                </div>
+            </form>
+        </div>
+    }
+</BoardTile>
+
+@code {
+    [Parameter] public Guid? ContractId { get; set; }
+
+    private List<DropDownResponse> contracts = new();
+    private Guid? contractId;
+    private bool hasExisting, busy;
+    private bool privateHiresEnabled = true, dedicatedContractsEnabled = true;
+    private bool loadedPrivateHires = true, loadedDedicatedContracts = true;
+    private string savedAt = string.Empty;
+    private string? error;
+    private ElementReference statusLine;
+
+    private bool IsChanged => privateHiresEnabled != loadedPrivateHires || dedicatedContractsEnabled != loadedDedicatedContracts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        contracts = (await ContractClient.GetDropDown(null)).Data ?? new List<DropDownResponse>();
+        contractId = ContractId;
+        if (contractId is not null) await Load();
+    }
+
+    private async Task OnContractChanged(Guid? id)
+    {
+        contractId = id;
+        if (contractId is not null) await Load();
+    }
+
+    private async Task Load()
+    {
+        error = null;
+        hasExisting = false;
+        privateHiresEnabled = dedicatedContractsEnabled = true;
+
+        var result = await IncomeFieldClient.Get(contractId!.Value);
+
+        if (result.IsSuccess && result.Data is not null)
+        {
+            hasExisting = true;
+            privateHiresEnabled = result.Data.IncomePrivateHiresEnabled;
+            dedicatedContractsEnabled = result.Data.IncomeDedicatedContractsEnabled;
+            savedAt = RelativeTime.Describe(result.Data.ModifiedAt);
+        }
+
+        loadedPrivateHires = privateHiresEnabled;
+        loadedDedicatedContracts = dedicatedContractsEnabled;
+    }
+
+    private async Task Save()
+    {
+        error = null;
+        busy = true;
+
+        var result = await IncomeFieldClient.Save(new SaveIncomeFieldsRequest
+        {
+            ContractId = contractId!.Value,
+            IncomePrivateHiresEnabled = privateHiresEnabled,
+            IncomeDedicatedContractsEnabled = dedicatedContractsEnabled
+        });
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            error = result.ErrorMessage;
+            await statusLine.FocusAsync();
+            return;
+        }
+
+        hasExisting = true;
+        savedAt = "just now";
+        loadedPrivateHires = privateHiresEnabled;
+        loadedDedicatedContracts = dedicatedContractsEnabled;
+        Notifications.Notify(NotificationLevel.Success, "Income fields saved", contracts.FirstOrDefault(c => c.Id == contractId)?.Value);
+    }
+}

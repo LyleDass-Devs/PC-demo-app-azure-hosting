@@ -14,9 +14,7 @@ WebAssemblyHostBuilder builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Autofac replaces the built-in container, matching how the API is wired.
 builder.ConfigureContainer(new AutofacServiceProviderFactory(RegisterServices));
-
 
 string apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? string.Empty;
 
@@ -32,7 +30,6 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddMudServices();
 builder.Services.AddScoped<KubaPC.SharedClient.Components.Layout.PageHeader>();
 
-// The two strings that differ between the apps on shared pages.
 builder.Services.AddSingleton(new AppInfo(KubaApp.Admin, "KubaPC Admin", "Payment Certificate administration"));
 
 builder.Services.AddScoped<AuthenticationStateProvider, KubaPcAuthenticationStateProvider>();

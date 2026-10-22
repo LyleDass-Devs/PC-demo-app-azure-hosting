@@ -1,48 +1,94 @@
-﻿@page "/catalogue"
+@page "/catalogue"
 @using KubaPC.Client.Admin.Components.Escalations
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject PageHeader Header
 @inject NavigationManager Navigation
-@inject IJSRuntime JavaScript
+@inject IMotionService Motion
+@inject IPenaltyListClientService PenaltyClient
+@inject IDnoReasonClientService DnoReasonClient
+@inject IReferenceUrlClientService ReferenceUrlClient
+@inject IContractRateClientService RateClient
+@inject IPublicHolidayClientService HolidayClient
 
 <PageTitle>Catalogue · KubaPC Admin</PageTitle>
 
-<BackLink Fallback="@ClientRoutes.HOME" />
+<BackLink Fallback="@(Active is null ? ClientRoutes.HOME : ClientRoutes.CATALOGUE)" />
 
-<nav class="sections" role="tablist" aria-label="Catalogue sections" style="@($"--section-count:{SECTIONS.Length};--active-index:{activeIndex}")">
-    <span class="sections__marker" aria-hidden="true"></span>
-    @for (int i = 0; i < SECTIONS.Length; i++)
-    {
-        Section section = SECTIONS[i];
-        int index = i;
-        <button type="button" role="tab" class="sections__item" aria-selected="@(index == activeIndex ? "true" : "false")" @onclick="() => SelectTab(index)">
-            @((MarkupString)section.Icon)
-            <span class="sections__label">@section.Label</span>
-        </button>
-    }
-</nav>
-
-@if (Active.Label == PENALTY_LISTS)
+@if (Active is null)
 {
-    <PenaltyListBoard ContractId="ContractId" />
-}
-else if (Active.Label == ESCALATION)
-{
-    <EscalationBoard ContractId="ContractId" />
-}
-else if (Active.Label == DNO_REASONS)
-{
-    <DnoReasonBoard />
-}
-else if (Active.Label == REFERENCE_URLS)
-{
-    <ReferenceUrlBoard />
+    <div class="catalogue" @ref="board">
+        @foreach (IGrouping<string, Section> group in SECTIONS.GroupBy(s => s.Scope))
+        {
+            <section class="catalogue__group">
+                <h2 class="catalogue__scope">@group.Key</h2>
+                <div class="home-grid">
+                    @foreach (Section section in group)
+                    {
+                        <a class="tile tile--pad tile--hover task" href="@SectionHref(section)" data-reveal @key="section.Label">
+                            <span class="tile__edge" style="--edge-color:@section.Edge" aria-hidden="true"></span>
+                            <span class="task__icon" aria-hidden="true">@((MarkupString)section.Icon)</span>
+                            <span class="task__body">
+                                <h3 class="tile__title">@section.Label</h3>
+                                <p class="tile__sub">@section.Description</p>
+                                <p class="catalogue__count">@(counts.TryGetValue(section.Label, out string? count) ? count : section.CountFallback)</p>
+                            </span>
+                            <span class="task__go" aria-hidden="true">@((MarkupString)KubaIcons.Regular.ArrowRight)</span>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
+    </div>
 }
 else
 {
-    <div class="stray">
-        <EmptyTile Title="@($"{Active.Label} arrive next")" Message="This section is not built yet." Icon="@Active.Icon" />
-    </div>
+    <MudHidden Breakpoint="Breakpoint.SmAndDown">
+        <nav class="switch" aria-label="Catalogue sections">
+            @foreach (Section section in SECTIONS)
+            {
+                Section current = section;
+                <a class="switch__item" href="@SectionHref(current)" aria-current="@(ReferenceEquals(current, Active) ? "page" : null)">
+                    @((MarkupString)current.Icon)
+                    <span>@current.Label</span>
+                </a>
+            }
+        </nav>
+    </MudHidden>
+
+    <MudHidden Breakpoint="Breakpoint.MdAndUp">
+        <div class="switch switch--picker">
+            <KubaSelect Items="sectionItems" Value="activeId" ValueChanged="OnPicked" Placeholder="Choose a section" AriaLabel="Catalogue section" AllowEmpty="false" />
+        </div>
+    </MudHidden>
+
+    @if (Active.Label == PENALTY_LISTS)
+    {
+        <PenaltyListBoard ContractId="ContractId" />
+    }
+    else if (Active.Label == ESCALATION)
+    {
+        <EscalationBoard ContractId="ContractId" />
+    }
+    else if (Active.Label == DNO_REASONS)
+    {
+        <DnoReasonBoard />
+    }
+    else if (Active.Label == REFERENCE_URLS)
+    {
+        <ReferenceUrlBoard />
+    }
+    else if (Active.Label == INCOME_FIELDS)
+    {
+        <IncomeFieldBoard ContractId="ContractId" />
+    }
+    else if (Active.Label == CONTRACT_RATES)
+    {
+        <ContractRateBoard ContractId="ContractId" />
+    }
+    else if (Active.Label == PUBLIC_HOLIDAYS)
+    {
+        <PublicHolidayBoard />
+    }
 }
 
 @code {
@@ -50,42 +96,103 @@ else
     private const string ESCALATION = "Escalation parameters";
     private const string DNO_REASONS = "DNO reasons";
     private const string REFERENCE_URLS = "Reference URLs";
+    private const string INCOME_FIELDS = "Income fields";
+    private const string CONTRACT_RATES = "Contract rates";
+    private const string PUBLIC_HOLIDAYS = "Public holidays";
 
-    private sealed record Section(string Label, string Icon, bool IsLive);
+    private const string PER_CONTRACT = "Per contract";
+    private const string SYSTEM_WIDE = "System-wide";
+
+    private sealed record Section(string Label, string Icon, string Description, string Scope, string Edge, string CountFallback);
 
     private static readonly Section[] SECTIONS =
     {
-        new(PENALTY_LISTS, KubaIcons.Regular.WarningCircle, true),
-        new(ESCALATION, KubaIcons.Regular.ChartBar, true),
-        new(DNO_REASONS, KubaIcons.Regular.XCircle, true),
-        new(REFERENCE_URLS, KubaIcons.Regular.ArrowUpRight, true),
-        new("Income fields", KubaIcons.Regular.Receipt, false)
+        new(PENALTY_LISTS, KubaIcons.Regular.WarningCircle, "The penalties that may be charged on a contract, with their amounts.", PER_CONTRACT, "var(--warn)", "Counting…"),
+        new(CONTRACT_RATES, KubaIcons.Regular.Bus, "Operated and standing rates per kilometre, by vehicle type, dated.", PER_CONTRACT, "var(--ok)", "Counting…"),
+        new(ESCALATION, KubaIcons.Regular.ChartBar, "Form D weights, base month and base index values.", PER_CONTRACT, "var(--info)", "Set per contract"),
+        new(INCOME_FIELDS, KubaIcons.Regular.Receipt, "Which Form B&H income fields the operator may capture.", PER_CONTRACT, "var(--info)", "Set per contract"),
+        new(DNO_REASONS, KubaIcons.Regular.XCircle, "Why a did-not-operate trip is treated as a standing trip.", SYSTEM_WIDE, "var(--kuba-indigo)", "Counting…"),
+        new(REFERENCE_URLS, KubaIcons.Regular.ArrowUpRight, "Where the Form D index values are read from each month.", SYSTEM_WIDE, "var(--kuba-indigo)", "Counting…"),
+        new(PUBLIC_HOLIDAYS, KubaIcons.Regular.CalendarBlank, "Dates Form I counts on the public holiday frequency.", SYSTEM_WIDE, "var(--kuba-indigo)", "Counting…")
     };
 
     [SupplyParameterFromQuery] public Guid? ContractId { get; set; }
     [SupplyParameterFromQuery] public string? Tab { get; set; }
 
-    private int activeIndex;
+    private ElementReference board;
+    private readonly Dictionary<string, string> counts = new();
+    private bool countsLoaded;
 
-    private Section Active => SECTIONS[activeIndex];
+    private Section? Active => SECTIONS.FirstOrDefault(s => string.Equals(s.Label, Tab, StringComparison.OrdinalIgnoreCase));
 
-    protected override void OnInitialized()
+    private static readonly List<DropDownResponse> sectionItems = SECTIONS
+        .Select((s, i) => new DropDownResponse { Id = new Guid(i + 1, 0, 0, new byte[8]), Value = s.Label })
+        .ToList();
+
+    private Guid? activeId => Active is null ? null : sectionItems[Array.IndexOf(SECTIONS, Active)].Id;
+
+    private string SectionHref(Section section)
     {
-        Header.Set("Catalogue");
-        int found = Array.FindIndex(SECTIONS, s => string.Equals(s.Label, Tab, StringComparison.OrdinalIgnoreCase));
-        activeIndex = found < 0 ? 0 : found;
+        string href = $"{ClientRoutes.CATALOGUE}?tab={Uri.EscapeDataString(section.Label)}";
+        return ContractId is null ? href : $"{href}&contractId={ContractId}";
     }
 
-    // The section lives in the address so a link can open one directly and the back button works.
-    private async Task SelectTab(int index)
+    protected override void OnParametersSet()
     {
-        activeIndex = index;
-        Navigation.NavigateTo(index == 0 ? ClientRoutes.CATALOGUE : $"{ClientRoutes.CATALOGUE}?tab={Uri.EscapeDataString(SECTIONS[index].Label)}", replace: true);
-        await JavaScript.InvokeVoidAsync("kubaMotion.revealSelected", ".sections");
+        Header.Set(Active is null ? "Catalogue" : Active.Label);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender) await JavaScript.InvokeVoidAsync("kubaMotion.revealSelected", ".sections");
+        if (Active is null && !countsLoaded)
+        {
+            countsLoaded = true;
+            await Motion.Animate(board, "board-reveal");
+            await LoadCounts();
+        }
+    }
+
+    private void OnPicked(Guid? id)
+    {
+        Section? section = SECTIONS.FirstOrDefault(s => sectionItems[Array.IndexOf(SECTIONS, s)].Id == id);
+        if (section is not null) Navigation.NavigateTo(SectionHref(section));
+    }
+
+    private async Task LoadCounts()
+    {
+        Task<string> penalties = Count(async () => (await PenaltyClient.GetPaged(new PenaltyListItemListRequest { Page = 1, PageSize = 1, IsActive = true })).Data?.ItemCount, "penalty", "penalties");
+        Task<string> rates = Count(async () => (await RateClient.GetPaged(new ContractRateListRequest { Page = 1, PageSize = 1, IsActive = true })).Data?.ItemCount, "rate", "rates");
+        Task<string> reasons = Count(async () => (await DnoReasonClient.GetPaged(new DnoReasonListRequest { Page = 1, PageSize = 1, IsActive = true })).Data?.ItemCount, "reason", "reasons");
+        Task<string> holidays = Count(async () => (await HolidayClient.GetPaged(new PublicHolidayListRequest { Page = 1, PageSize = 1, IsActive = true })).Data?.ItemCount, "date", "dates");
+        Task<string> links = Links();
+
+        await Task.WhenAll(penalties, rates, reasons, holidays, links);
+
+        counts[PENALTY_LISTS] = penalties.Result;
+        counts[CONTRACT_RATES] = rates.Result;
+        counts[DNO_REASONS] = reasons.Result;
+        counts[PUBLIC_HOLIDAYS] = holidays.Result;
+        counts[REFERENCE_URLS] = links.Result;
+        StateHasChanged();
+    }
+
+    private static async Task<string> Count(Func<Task<long?>> read, string singular, string plural)
+    {
+        long? total = await read();
+        return total switch
+        {
+            null => "Not available",
+            0 => $"No {plural} yet",
+            1 => $"1 {singular}",
+            _ => $"{total} {plural}"
+        };
+    }
+
+    private async Task<string> Links()
+    {
+        var result = await ReferenceUrlClient.GetAll();
+        if (result.Data is null) return "Not available";
+        int set = result.Data.Count(r => !string.IsNullOrWhiteSpace(r.UrlValue));
+        return $"{set} of {result.Data.Count} set";
     }
 }

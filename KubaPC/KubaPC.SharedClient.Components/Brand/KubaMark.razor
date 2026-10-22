@@ -1,7 +1,4 @@
-﻿@* The Kuba mark: a disc split into a left half and a right-hand kite. Both shapes are
-   cut from the same circle, so they always line up at any size. pathLength=1 lets CSS or
-   GSAP animate stroke-dashoffset from 1 to 0 regardless of the real path length. *@
-<svg class="@($"kuba-mark {(Outline ? "kuba-mark--outline" : "")} {Class}")"
+﻿<svg class="@($"kuba-mark {(Outline ? "kuba-mark--outline" : "")} {Class}")"
      viewBox="0 0 100 100" width="@Size" height="@Size" overflow="visible" shape-rendering="geometricPrecision" aria-hidden="true" @ref="Element">
     <path pathLength="1" d="M50 0 A50 50 0 0 0 50 100 Z" />
     <path pathLength="1" d="M50 50 L85.36 14.64 A50 50 0 0 1 85.36 85.36 Z" />

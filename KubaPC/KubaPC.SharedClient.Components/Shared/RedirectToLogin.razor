@@ -1,8 +1,6 @@
 @inject NavigationManager navigationManager
 
 @code {
-    // Sends an unauthenticated visitor to the login page, remembering where they
-    // were headed so they can be returned there after signing in.
     protected override void OnInitialized()
     {
         string returnUrl = navigationManager.ToBaseRelativePath(navigationManager.Uri);

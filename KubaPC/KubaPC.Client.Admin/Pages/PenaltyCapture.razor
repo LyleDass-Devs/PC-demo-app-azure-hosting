@@ -1,0 +1,265 @@
+@page "/penalty-capture"
+@using KubaPC.Client.Admin.Components.PenaltyCaptures
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Operator Staff,Monitor,Authoriser,Admin")]
+@inject IContractClientService ContractClient
+@inject IPenaltyCaptureClientService CaptureClient
+@inject IPenaltyListClientService PenaltyClient
+@inject INotificationService Notifications
+@inject PageHeader Header
+
+<PageTitle>Capture penalty · KubaPC</PageTitle>
+
+<BackLink Fallback="@ClientRoutes.HOME" />
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <KubaSelect Items="contracts" Value="contractId" ValueChanged="OnContractChanged" Placeholder="Choose a contract" AriaLabel="Contract" />
+        <KubaSelect Items="routes" Value="routeId" ValueChanged="OnRouteChanged" Placeholder="Choose a route" AriaLabel="Route" Disabled="@(contractId is null)" />
+        <div class="field" style="margin:0;min-width:170px">
+            <input id="trip-date" class="kinput" type="date" aria-label="Trip date" @bind="tripDate" @bind:format="yyyy-MM-dd" @bind:after="LoadTrips" disabled="@(routeId is null)" />
+        </div>
+        <KubaSelect Items="trips" Value="tripId" ValueChanged="OnTripChanged" Placeholder="Choose a trip" AriaLabel="Trip" Disabled="@(routeId is null)" />
+        <span class="toolbar__count">@countLabel</span>
+        @if (canCapture)
+        {
+            <KubaButton Text="Capture penalty" Icon="@KubaIcons.Regular.Plus" Small="true" Disabled="@(tripId is null)" OnClick="OpenCreate" />
+        }
+    </div>
+
+    @if (tripId is null)
+    {
+        <EmptyTile Title="Pick a trip" Message="Choose the contract, route and date, then the trip the offence happened on." Icon="@KubaIcons.Light.Bus" />
+    }
+    else
+    {
+        @if (confirmTarget is not null)
+        {
+            <div class="focus-card" style="max-width:640px;margin:16px auto 0">
+                <div class="status-line" role="alert">@confirmError</div>
+                <div class="field">
+                    <label for="remove-reason">Reason for removing @confirmTarget.PenaltyCode</label>
+                    <input id="remove-reason" class="kinput" @bind="confirmReason" autocomplete="off" />
+                </div>
+                <div class="kdrawer__actions">
+                    <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="() => confirmTarget = null" Disabled="confirmBusy" />
+                    <KubaButton Text="Remove capture" Variant="KubaButton.KubaButtonVariant.Danger" Icon="@KubaIcons.Regular.Check" Busy="confirmBusy" OnClick="Remove" />
+                </div>
+            </div>
+        }
+
+        <div class="tile-list" style="padding:12px">
+            @if (captures.Count == 0 && !loading)
+            {
+                <EmptyTile Title="No penalties on this trip yet" Message="@(canCapture ? "Capture the first one with Capture penalty." : null)" Icon="@KubaIcons.Light.WarningCircle" />
+            }
+            @foreach (PenaltyCaptureResponse row in captures)
+            {
+                <div class="tile tile-row" @key="row.Id">
+                    <span class="tile__edge" style="--edge-color:@EdgeColour(row)" aria-hidden="true"></span>
+                    <div class="grow">
+                        <div class="name">@row.PenaltyCode · @row.PenaltyDescription</div>
+                        <div class="sub">
+                            @row.CapturedByRole · @row.CapturedByName
+                            @if (row.RandAmount is decimal amount) { <span> · R @amount.ToString("N2")</span> } else { <span> · By formula</span> }
+                            @if (!string.IsNullOrWhiteSpace(row.VehicleNumber)) { <span> · @row.VehicleNumber</span> }
+                            @if (!string.IsNullOrWhiteSpace(row.TripDetail)) { <span> · @row.TripDetail</span> }
+                        </div>
+                    </div>
+                    <StatusChip Kind="@StatusKind(row.CaptureStatus)" Text="@row.CaptureStatus" />
+                    @if (row.IsMine && CanChange(row))
+                    {
+                        <button class="iconbtn" type="button" aria-label="@($"Actions for {row.PenaltyCode}")" @onclick="e => OpenRowMenu(e, row)">
+                            <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+</BoardTile>
+
+<MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
+    <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="OpenEdit">Edit</MudMenuItem>
+    <MudMenuItem Icon="@KubaIcons.Regular.XCircle" OnClick="() => AskRemove(menuTarget!)">Remove</MudMenuItem>
+</MudMenu>
+
+<PenaltyCaptureDrawer @ref="drawer" ContractId="@(contractId ?? Guid.Empty)" RouteId="@(routeId ?? Guid.Empty)" TripId="@(tripId ?? Guid.Empty)"
+                      TripLabel="@tripLabel" Vehicles="vehicles" PenaltyTypes="penaltyTypes" OnSaved="LoadCaptures" />
+
+@code {
+    private PenaltyCaptureDrawer? drawer;
+    private MudMenu? rowMenu;
+    private PenaltyCaptureResponse? menuTarget;
+    private PenaltyCaptureResponse? confirmTarget;
+    private bool confirmBusy, loading, canCapture;
+    private string? confirmError, confirmReason;
+    private string countLabel = string.Empty, tripLabel = string.Empty;
+    private Guid? contractId, routeId, tripId;
+    private DateOnly? tripDate;
+    private List<DropDownResponse> contracts = new(), routes = new(), trips = new(), vehicles = new();
+    private List<PenaltyTypeResponse> penaltyTypes = new();
+    private List<PenaltyCaptureResponse> captures = new();
+    private List<TripOptionResponse> tripOptions = new();
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Capture penalty");
+
+        if (AuthenticationState is not null)
+        {
+            AuthenticationState state = await AuthenticationState;
+            canCapture = state.User.IsInRole("Operator Staff") || state.User.IsInRole("Monitor") || state.User.IsInRole("SuperAdmin");
+        }
+
+        contracts = (await ContractClient.GetDropDown(null)).Data ?? new List<DropDownResponse>();
+        penaltyTypes = (await PenaltyClient.GetLookups()).Data?.PenaltyTypes ?? new List<PenaltyTypeResponse>();
+    }
+
+    private async Task OnContractChanged(Guid? id)
+    {
+        contractId = id;
+        routeId = tripId = null;
+        routes = new List<DropDownResponse>();
+        trips = new List<DropDownResponse>();
+        captures = new List<PenaltyCaptureResponse>();
+        countLabel = string.Empty;
+
+        if (contractId is null) return;
+
+        routes = (await CaptureClient.GetRoutes(contractId.Value)).Data ?? new List<DropDownResponse>();
+        vehicles = (await CaptureClient.GetVehicles(contractId.Value)).Data ?? new List<DropDownResponse>();
+    }
+
+    private async Task OnRouteChanged(Guid? id)
+    {
+        routeId = id;
+        tripId = null;
+        captures = new List<PenaltyCaptureResponse>();
+        countLabel = string.Empty;
+        await LoadTrips();
+    }
+
+    private async Task LoadTrips()
+    {
+        trips = new List<DropDownResponse>();
+        tripOptions = new List<TripOptionResponse>();
+
+        if (routeId is null) return;
+
+        var result = await CaptureClient.GetTrips(routeId.Value, null);
+        tripOptions = result.Data ?? new List<TripOptionResponse>();
+
+        if (tripDate is DateOnly chosen)
+        {
+            tripOptions = tripOptions.Where(t => t.ScheduledDate == chosen).ToList();
+        }
+
+        trips = tripOptions.Select(t => new DropDownResponse
+        {
+            Id = t.Id,
+            Value = $"{t.ScheduledDate:yyyy-MM-dd} {t.ScheduledDeparture:HH\\:mm} · {t.TripNumber}"
+        }).ToList();
+
+        if (tripId is not null && trips.All(t => t.Id != tripId))
+        {
+            tripId = null;
+            captures = new List<PenaltyCaptureResponse>();
+        }
+    }
+
+    private async Task OnTripChanged(Guid? id)
+    {
+        tripId = id;
+        TripOptionResponse? trip = tripOptions.FirstOrDefault(t => t.Id == id);
+        tripLabel = trip is null ? string.Empty : $"{trip.RouteNumber} {trip.Direction} · {trip.ScheduledDate:d MMMM yyyy} · trip {trip.TripNumber}";
+        await LoadCaptures();
+    }
+
+    private async Task LoadCaptures()
+    {
+        if (tripId is null) return;
+
+        loading = true;
+        var result = await CaptureClient.GetPaged(new PenaltyCaptureListRequest { TripId = tripId, Page = 1, PageSize = 100 });
+        loading = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not load the captures", result.ErrorMessage);
+            return;
+        }
+
+        captures = result.Data.Data;
+        countLabel = captures.Count == 0 ? "No penalties" : $"{captures.Count} on this trip";
+        StateHasChanged();
+    }
+
+    private static bool CanChange(PenaltyCaptureResponse capture) => capture.CaptureStatus is "Submitted" or "Under Dispute";
+
+    private static string EdgeColour(PenaltyCaptureResponse capture) => capture.CaptureStatus switch
+    {
+        "Approved" => "var(--ok)",
+        "Rejected" => "#C9C7D0",
+        "Under Dispute" => "var(--danger)",
+        _ => "var(--warn)"
+    };
+
+    private static StatusChip.StatusKind StatusKind(string status) => status switch
+    {
+        "Approved" => StatusChip.StatusKind.Ok,
+        "Rejected" => StatusChip.StatusKind.Off,
+        "Under Dispute" => StatusChip.StatusKind.Danger,
+        _ => StatusChip.StatusKind.Pending
+    };
+
+    private async Task OpenCreate()
+    {
+        if (drawer is not null) await drawer.OpenCreate();
+    }
+
+    private async Task OpenEdit()
+    {
+        if (drawer is not null && menuTarget is not null) await drawer.OpenEdit(menuTarget);
+    }
+
+    private async Task OpenRowMenu(MouseEventArgs e, PenaltyCaptureResponse capture)
+    {
+        menuTarget = capture;
+        if (rowMenu is not null) await rowMenu.OpenMenuAsync(e);
+    }
+
+    private void AskRemove(PenaltyCaptureResponse capture)
+    {
+        confirmTarget = capture;
+        confirmError = null;
+        confirmReason = null;
+    }
+
+    private async Task Remove()
+    {
+        if (confirmTarget is null) return;
+
+        if (string.IsNullOrWhiteSpace(confirmReason))
+        {
+            confirmError = "Give a reason for removing the capture.";
+            return;
+        }
+
+        confirmBusy = true;
+        var result = await CaptureClient.Delete(new DeletePenaltyCaptureRequest { Id = confirmTarget.Id, Reason = confirmReason });
+        confirmBusy = false;
+
+        if (!result.IsSuccess)
+        {
+            confirmError = result.ErrorMessage;
+            return;
+        }
+
+        string code = confirmTarget.PenaltyCode;
+        confirmTarget = null;
+        Notifications.Notify(NotificationLevel.Success, $"{code} removed", null);
+        await LoadCaptures();
+    }
+}

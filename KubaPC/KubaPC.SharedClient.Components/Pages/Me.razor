@@ -89,7 +89,6 @@
         }
 
         isEditingName = false;
-        // The rail and the top bar read the cached user, so refresh it rather than wait for the next sign-in.
         user = await CurrentUser.Refresh();
         Notifications.Notify(NotificationLevel.Success, "Name updated", user?.FullName);
     }

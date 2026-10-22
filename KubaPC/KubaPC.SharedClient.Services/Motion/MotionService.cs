@@ -20,7 +20,7 @@ namespace KubaPC.SharedClient.Services.Motion
             }
             catch (JSException)
             {
-                // Motion is decoration: a missing or failed recipe must never break a page.
+
             }
         }
 
@@ -32,11 +32,11 @@ namespace KubaPC.SharedClient.Services.Motion
             }
             catch (JSException)
             {
-                // The element may already be gone; nothing to release.
+
             }
             catch (JSDisconnectedException)
             {
-                // The runtime is shutting down.
+
             }
         }
     }

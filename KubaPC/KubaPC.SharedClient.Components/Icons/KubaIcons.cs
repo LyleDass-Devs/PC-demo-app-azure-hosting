@@ -1,6 +1,6 @@
 namespace KubaPC.SharedClient.Components.Icons
 {
-    /// <summary>Phosphor icons (MIT licence) as SVG strings, accepted by every MudBlazor icon parameter.</summary>
+
     public static class KubaIcons
     {
         public static class Regular

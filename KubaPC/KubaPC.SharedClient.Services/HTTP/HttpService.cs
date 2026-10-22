@@ -1,5 +1,4 @@
-﻿
-using KubaPC.SharedClient.Services.Models;
+﻿using KubaPC.SharedClient.Services.Models;
 using KubaPC.SharedClient.Services.Storage;
 using Microsoft.AspNetCore.Components;
 using System.Net;
@@ -70,16 +69,15 @@ namespace KubaPC.SharedClient.Services.Http
 
             HttpResponseMessage response;
 
-            using (requestActivity.Begin()) 
-            { 
+            using (requestActivity.Begin())
+            {
                 try
                 {
                     response = await httpClient.SendAsync(request);
                 }
                 catch (Exception)
                 {
-                    // No response at all: the API is down, the address is wrong, or the
-                    // browser blocked the call. Status 0 says "ne
+
                     return new Outcome(false, 0, null, null, "The server could not be reached. Check your connection and try again.", EMPTY_ERRORS);
                 }
 
@@ -101,8 +99,6 @@ namespace KubaPC.SharedClient.Services.Http
         {
             ErrorPayload payload = ReadErrorPayload(content);
 
-            // A 401 while holding a token means that token is no longer good.
-            // A 401 without one is simply a rejected sign-in
             if (statusCode == HttpStatusCode.Unauthorized && isTokenAttached)
             {
                 await tokenStore.ClearToken();
@@ -145,8 +141,6 @@ namespace KubaPC.SharedClient.Services.Http
                 return new ErrorPayload();
             }
 
-            // An error body is not guaranteed to be JSON: a proxy or the hosting
-            // platform can return HTML. Falling back keeps th
             try
             {
                 return JsonSerializer.Deserialize<ErrorPayload>(content, JSON_OPTIONS) ?? new ErrorPayload();
@@ -227,7 +221,6 @@ namespace KubaPC.SharedClient.Services.Http
 
         private static readonly IReadOnlyDictionary<string, string[]> EMPTY_ERRORS = new Dictionary<string, string[]>();
 
-        /// <summary>What one HTTP exchange produced, before it is shaped for a caller.</summary>
         private sealed record Outcome(
             bool IsSuccess,
             int StatusCode,
@@ -236,7 +229,6 @@ namespace KubaPC.SharedClient.Services.Http
             string? ErrorMessage,
             IReadOnlyDictionary<string, string[]> ValidationErrors);
 
-        /// <summary>The API's error body. Covers both the valefusal shape.</summary>
         private sealed class ErrorPayload
         {
             public string? Message { get; set; }

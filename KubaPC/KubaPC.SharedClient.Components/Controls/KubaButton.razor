@@ -1,4 +1,3 @@
-@* Label and ring share one grid cell, so the button never changes width when it becomes busy. *@
 <button class="kbtn @VariantClass @(Block ? "kbtn--block" : "") @(Small ? "kbtn--sm" : "") @(Busy ? "is-busy" : "") @Class"
         type="@Type" disabled="@(Disabled || Busy)" aria-busy="@Busy" @onclick="HandleClick">
     <span class="kbtn__label">@Text</span>

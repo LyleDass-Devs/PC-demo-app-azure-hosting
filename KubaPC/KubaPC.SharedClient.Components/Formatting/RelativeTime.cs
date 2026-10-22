@@ -1,6 +1,6 @@
 namespace KubaPC.SharedClient.Components.Formatting
 {
-    /// <summary>"2 min ago", "Yesterday", "Never": how the interface says when something last happened.</summary>
+
     public static class RelativeTime
     {
         public static string Describe(DateTime? at)

@@ -1,0 +1,258 @@
+@page "/form-f1-capture"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Operator Staff,Monitor,Authoriser,Admin")]
+@inject IContractClientService ContractClient
+@inject IPenaltyCaptureClientService TripClient
+@inject IFormF1ClientService FormClient
+@inject INotificationService Notifications
+@inject PageHeader Header
+
+<PageTitle>Capture Form F1 · KubaPC</PageTitle>
+
+<BackLink Fallback="@ClientRoutes.HOME" />
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <KubaSelect Items="contracts" Value="contractId" ValueChanged="OnContractChanged" Placeholder="Choose a contract" AriaLabel="Contract" />
+        <KubaSelect Items="routes" Value="routeId" ValueChanged="OnRouteChanged" Placeholder="Choose a route" AriaLabel="Route" Disabled="@(contractId is null)" />
+        <div class="field" style="margin:0;min-width:170px">
+            <input id="trip-date" class="kinput" type="date" aria-label="Trip date" @bind="tripDate" @bind:format="yyyy-MM-dd" @bind:after="LoadTrips" disabled="@(routeId is null)" />
+        </div>
+        <KubaSelect Items="trips" Value="tripId" ValueChanged="OnTripChanged" Placeholder="Choose a trip" AriaLabel="Trip" Disabled="@(routeId is null)" />
+        <span class="toolbar__count">@countLabel</span>
+        @if (canCapture)
+        {
+            <KubaButton Text="Capture record" Icon="@KubaIcons.Regular.Plus" Small="true" Disabled="@(tripId is null)" OnClick="OpenCreate" />
+        }
+    </div>
+
+    @if (tripId is null)
+    {
+        <EmptyTile Title="Pick a trip" Message="Choose the contract, route and date, then the trip the breakdown, non-conformance or standing trip relates to." Icon="@KubaIcons.Light.Bus" />
+    }
+    else
+    {
+        @if (confirmTarget is not null)
+        {
+            <div class="focus-card" style="max-width:640px;margin:16px auto 0">
+                <div class="status-line" role="alert">@confirmError</div>
+                <div class="field">
+                    <label for="remove-reason">Reason for removing the @confirmTarget.RecordType.ToLowerInvariant() record</label>
+                    <input id="remove-reason" class="kinput" @bind="confirmReason" autocomplete="off" />
+                </div>
+                <div class="kdrawer__actions">
+                    <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="() => confirmTarget = null" Disabled="confirmBusy" />
+                    <KubaButton Text="Remove record" Variant="KubaButton.KubaButtonVariant.Danger" Icon="@KubaIcons.Regular.Check" Busy="confirmBusy" OnClick="Remove" />
+                </div>
+            </div>
+        }
+
+        <div class="tile-list" style="padding:12px">
+            @if (records.Count == 0 && !loading)
+            {
+                <EmptyTile Title="No Form F1 records on this trip yet" Message="@(canCapture ? "Capture the first one with Capture record." : null)" Icon="@KubaIcons.Light.ClipboardText" />
+            }
+            @foreach (FormF1RecordResponse row in records)
+            {
+                <div class="tile tile-row" @key="row.Id">
+                    <span class="tile__edge" style="--edge-color:@EdgeColour(row)" aria-hidden="true"></span>
+                    <div class="grow">
+                        <div class="name">@row.RecordType</div>
+                        <div class="sub">
+                            @row.CapturedByRole · @row.CapturedByName · @row.Reason
+                            @if (!string.IsNullOrWhiteSpace(row.DnoReasonValue)) { <span> · @row.DnoReasonValue</span> }
+                        </div>
+                    </div>
+                    <StatusChip Kind="@StatusKind(row.RecordStatus)" Text="@row.RecordStatus" />
+                    @if (row.IsMine && CanChange(row))
+                    {
+                        <button class="iconbtn" type="button" aria-label="@($"Actions for {row.RecordType}")" @onclick="e => OpenRowMenu(e, row)">
+                            <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+</BoardTile>
+
+<MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
+    <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="OpenEdit">Edit</MudMenuItem>
+    <MudMenuItem Icon="@KubaIcons.Regular.XCircle" OnClick="() => AskRemove(menuTarget!)">Remove</MudMenuItem>
+</MudMenu>
+
+<FormF1Drawer @ref="drawer" RouteId="@(routeId ?? Guid.Empty)" TripId="@(tripId ?? Guid.Empty)" TripLabel="@tripLabel" OnSaved="LoadRecords" />
+
+@code {
+    private FormF1Drawer? drawer;
+    private MudMenu? rowMenu;
+    private FormF1RecordResponse? menuTarget;
+    private FormF1RecordResponse? confirmTarget;
+    private bool confirmBusy, loading, canCapture;
+    private string? confirmError, confirmReason;
+    private string countLabel = string.Empty, tripLabel = string.Empty;
+    private Guid? contractId, routeId, tripId;
+    private DateOnly? tripDate;
+    private List<DropDownResponse> contracts = new(), routes = new(), trips = new();
+    private List<FormF1RecordResponse> records = new();
+    private List<TripOptionResponse> tripOptions = new();
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Capture Form F1");
+
+        if (AuthenticationState is not null)
+        {
+            AuthenticationState state = await AuthenticationState;
+            canCapture = state.User.IsInRole("Operator Staff") || state.User.IsInRole("Monitor") || state.User.IsInRole("SuperAdmin");
+        }
+
+        contracts = (await ContractClient.GetDropDown(null)).Data ?? new List<DropDownResponse>();
+    }
+
+    private async Task OnContractChanged(Guid? id)
+    {
+        contractId = id;
+        routeId = tripId = null;
+        routes = new List<DropDownResponse>();
+        trips = new List<DropDownResponse>();
+        records = new List<FormF1RecordResponse>();
+        countLabel = string.Empty;
+
+        if (contractId is null) return;
+
+        routes = (await TripClient.GetRoutes(contractId.Value)).Data ?? new List<DropDownResponse>();
+    }
+
+    private async Task OnRouteChanged(Guid? id)
+    {
+        routeId = id;
+        tripId = null;
+        records = new List<FormF1RecordResponse>();
+        countLabel = string.Empty;
+        await LoadTrips();
+    }
+
+    private async Task LoadTrips()
+    {
+        trips = new List<DropDownResponse>();
+        tripOptions = new List<TripOptionResponse>();
+
+        if (routeId is null) return;
+
+        var result = await TripClient.GetTrips(routeId.Value, null);
+        tripOptions = result.Data ?? new List<TripOptionResponse>();
+
+        if (tripDate is DateOnly chosen)
+        {
+            tripOptions = tripOptions.Where(t => t.ScheduledDate == chosen).ToList();
+        }
+
+        trips = tripOptions.Select(t => new DropDownResponse
+        {
+            Id = t.Id,
+            Value = $"{t.ScheduledDate:yyyy-MM-dd} {t.ScheduledDeparture:HH\\:mm} · {t.TripNumber}"
+        }).ToList();
+
+        if (tripId is not null && trips.All(t => t.Id != tripId))
+        {
+            tripId = null;
+            records = new List<FormF1RecordResponse>();
+        }
+    }
+
+    private async Task OnTripChanged(Guid? id)
+    {
+        tripId = id;
+        TripOptionResponse? trip = tripOptions.FirstOrDefault(t => t.Id == id);
+        tripLabel = trip is null ? string.Empty : $"{trip.RouteNumber} {trip.Direction} · {trip.ScheduledDate:d MMMM yyyy} · trip {trip.TripNumber}";
+        await LoadRecords();
+    }
+
+    private async Task LoadRecords()
+    {
+        if (tripId is null) return;
+
+        loading = true;
+        var result = await FormClient.GetPaged(new FormF1ListRequest { TripId = tripId, Page = 1, PageSize = 100 });
+        loading = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not load the records", result.ErrorMessage);
+            return;
+        }
+
+        records = result.Data.Data;
+        countLabel = records.Count == 0 ? "No records" : $"{records.Count} on this trip";
+        StateHasChanged();
+    }
+
+    private static bool CanChange(FormF1RecordResponse record) => record.RecordStatus is "Submitted" or "Under Dispute";
+
+    private static string EdgeColour(FormF1RecordResponse record) => record.RecordStatus switch
+    {
+        "Approved" => "var(--ok)",
+        "Rejected" => "#C9C7D0",
+        "Under Dispute" => "var(--danger)",
+        _ => "var(--warn)"
+    };
+
+    private static StatusChip.StatusKind StatusKind(string status) => status switch
+    {
+        "Approved" => StatusChip.StatusKind.Ok,
+        "Rejected" => StatusChip.StatusKind.Off,
+        "Under Dispute" => StatusChip.StatusKind.Danger,
+        _ => StatusChip.StatusKind.Pending
+    };
+
+    private async Task OpenCreate()
+    {
+        if (drawer is not null) await drawer.OpenCreate();
+    }
+
+    private async Task OpenEdit()
+    {
+        if (drawer is not null && menuTarget is not null) await drawer.OpenEdit(menuTarget);
+    }
+
+    private async Task OpenRowMenu(MouseEventArgs e, FormF1RecordResponse record)
+    {
+        menuTarget = record;
+        if (rowMenu is not null) await rowMenu.OpenMenuAsync(e);
+    }
+
+    private void AskRemove(FormF1RecordResponse record)
+    {
+        confirmTarget = record;
+        confirmError = null;
+        confirmReason = null;
+    }
+
+    private async Task Remove()
+    {
+        if (confirmTarget is null) return;
+
+        if (string.IsNullOrWhiteSpace(confirmReason))
+        {
+            confirmError = "Give a reason for removing the record.";
+            return;
+        }
+
+        confirmBusy = true;
+        var result = await FormClient.Delete(new DeleteFormF1RecordRequest { Id = confirmTarget.Id, Reason = confirmReason });
+        confirmBusy = false;
+
+        if (!result.IsSuccess)
+        {
+            confirmError = result.ErrorMessage;
+            return;
+        }
+
+        string type = confirmTarget.RecordType;
+        confirmTarget = null;
+        Notifications.Notify(NotificationLevel.Success, $"{type} record removed", null);
+        await LoadRecords();
+    }
+}

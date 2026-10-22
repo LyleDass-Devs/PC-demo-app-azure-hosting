@@ -39,7 +39,6 @@
                 <TemplateColumn Title="Code" SortBy="@(x => x.PenaltyCode)" Sortable="true">
                     <CellTemplate><div class="name">@context.Item.PenaltyCode</div></CellTemplate>
                 </TemplateColumn>
-                @* Hidden rather than conditional: a column added later lands at the end of the grid. *@
                 <TemplateColumn Title="Contract" SortBy="@(x => x.ContractNumber)" Sortable="true" Hidden="@(contractId is not null)">
                     <CellTemplate><div class="name">@context.Item.ContractNumber</div><div class="email">@context.Item.OperatorName</div></CellTemplate>
                 </TemplateColumn>

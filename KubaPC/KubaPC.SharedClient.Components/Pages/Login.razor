@@ -2,8 +2,8 @@
 @layout FocusedLayout
 @inject IAuthenticationClientService Authentication
 @inject NavigationManager Navigation
-@inject IMotionService Motion 
-@inject AppInfo App 
+@inject IMotionService Motion
+@inject AppInfo App
 
 <PageTitle> Sign in  · @App.Title</PageTitle>
 
@@ -47,7 +47,6 @@
     private KubaMark? mark;
     private ElementReference tile;
 
-    // A stale token from an earlier session must not ride along on the sign-in request.
     protected override Task OnInitializedAsync() => Authentication.SignOut();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

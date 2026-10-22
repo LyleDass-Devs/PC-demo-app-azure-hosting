@@ -164,7 +164,6 @@
         return new GridData<OperatorListResponse> { Items = result.Data.Data, TotalItems = (int)result.Data.ItemCount };
     }
 
-    // The phone list is small enough to show in one page; operators number in the tens, not thousands.
     private async Task LoadPhoneRows()
     {
         var result = await OperatorClient.GetPaged(BuildRequest(1, 100, "operatorName", false));

@@ -10,7 +10,6 @@
     [Parameter, EditorRequired] public string Fallback { get; set; } = "/";
     [Parameter] public string Text { get; set; } = "Back";
 
-    // Go where the person came from when the app has a history entry, otherwise to the sensible parent.
     private async Task Go()
     {
         bool hasHistory = await JavaScript.InvokeAsync<bool>("kubaMotion.canGoBack");

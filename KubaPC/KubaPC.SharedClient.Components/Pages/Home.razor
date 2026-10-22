@@ -8,8 +8,6 @@
 
 <PageTitle>Home · @App.Title</PageTitle>
 
-<p class="home-intro">@Greeting, <b>@(user?.FullName)</b>. What do you want to do?</p>
-
 <div class="home-grid" @ref="board">
     @foreach (HomeTask task in visible)
     {

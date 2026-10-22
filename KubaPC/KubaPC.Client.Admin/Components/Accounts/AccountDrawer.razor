@@ -60,19 +60,10 @@
             @if (NeedsOperators)
             {
                 <div class="field">
-                    <label>Operators</label>
-                    <span class="field__hint">@(IsSingleOperator ? "Operator Staff work for one bus company. Pick it here." : "Which bus companies this person may work on. Leave empty for none.")</span>
-                    <div class="chips" style="gap:8px;margin-top:4px">
-                        @foreach (DropDownResponse item in operators)
-                        {
-                            bool on = selectedOperatorIds.Contains(item.Id);
-                            <button type="button" class="chip chip--toggle @(on ? "chip--on" : "")" aria-pressed="@(on ? "true" : "false")" @onclick="() => ToggleOperator(item.Id)">@item.Value</button>
-                        }
-                        @if (operators.Count == 0)
-                        {
-                            <span class="field__hint">No active operators yet. Add one under Operators first.</span>
-                        }
-                    </div>
+                    <label for="account-operators">Operators</label>
+                    <span class="field__hint">@(IsSingleOperator ? "Operator Staff work for one bus company. Search for it and tick it." : "Which bus companies this person may work on. Tick as many as apply, or none.")</span>
+                    <KubaMultiPick Id="account-operators" Items="operators" Value="selectedOperatorIds" ValueChanged="OnOperatorsChanged" Single="IsSingleOperator"
+                                   Placeholder="Search operators" AriaLabel="Operators" EmptyText="No active operators yet. Add one under Operators first." />
                 </div>
             }
 
@@ -119,12 +110,10 @@
     private List<DropDownResponse> operators = new();
     private readonly HashSet<Guid> selectedOperatorIds = new();
 
-    // Only roles scoped to operators get grants; SuperAdmin, Monitor and DOT see everything anyway.
     private static readonly string[] OPERATOR_SCOPED_ROLES = { "Authoriser", "Operator Staff", "Admin" };
 
     private bool NeedsOperators => selectedRoles.Overlaps(OPERATOR_SCOPED_ROLES);
 
-    // An operator's own representative belongs to that operator alone; oversight roles may span several.
     private bool IsSingleOperator => selectedRoles.Contains("Operator Staff");
     private string? error;
     private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
@@ -136,9 +125,9 @@
     private IReadOnlyDictionary<string, string[]> resetFieldErrors = new Dictionary<string, string[]>();
     private ElementReference resetStatusLine;
 
-    public async void OpenCreate() 
+    public async void OpenCreate()
     {
-        Reset(); 
+        Reset();
         isEdit = false;
         await EnsureRoles();
         await EnsureOperators();
@@ -164,7 +153,7 @@
         fieldErrors = new Dictionary<string, string[]>();
         fullName = email = password = string.Empty;
         selectedRoles.Clear(); selectedOperatorIds.Clear(); isSelf = false;
-        busy = false; 
+        busy = false;
         CloseReset();
     }
 
@@ -206,13 +195,14 @@
     {
         if (!selectedRoles.Remove(role))
             selectedRoles.Add(role);
+        if (IsSingleOperator && selectedOperatorIds.Count > 1)
+            selectedOperatorIds.IntersectWith(new[] { selectedOperatorIds.First() });
     }
 
-    private void ToggleOperator(Guid id)
+    private void OnOperatorsChanged(HashSet<Guid> ids)
     {
-        if (selectedOperatorIds.Remove(id)) return;
-        if (IsSingleOperator) selectedOperatorIds.Clear();
-        selectedOperatorIds.Add(id);
+        selectedOperatorIds.Clear();
+        selectedOperatorIds.UnionWith(ids);
     }
 
     private async Task EnsureOperators()
@@ -238,7 +228,6 @@
 
         if (!result.IsSuccess)
         {
-            // 400: bind per field. 409: keep every value, say why at the top, move focus there. Anything else: same line.
             fieldErrors = result.ValidationErrors;
             error = result.HasValidationErrors ? null : result.ErrorMessage;
             if (error is not null) await statusLine.FocusAsync();

@@ -1,8 +1,6 @@
-// KubaPC motion. Blazor owns the DOM; this module only animates elements it is handed,
-// by recipe name, and forgets them when told. A WeakMap holds the live tweens so an
-// element Blazor removes mid-animation is collected together with its tween.
 (function () {
   const live = new WeakMap();
+  const marked = new WeakSet();
   const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function ready() {
@@ -15,7 +13,6 @@
     "entry-tile": (el) => gsap.from(el, { y: 28, opacity: 0, duration: 0.42, ease: "expo.out" }),
     "mark-draw": (el) => gsap.fromTo(el.querySelectorAll("path"), { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut", stagger: 0.15 }),
     "tile-in": (el) => gsap.from(el, { y: 16, opacity: 0, duration: 0.42, ease: "expo.out" }),
-    // The one place height animates: a row leaving a list. Documented exception to transform-only.
     "tile-out": (el) => gsap.to(el, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, marginBottom: 0, duration: 0.3, ease: "expo.in" }),
     "board-reveal": (el) => {
       const tiles = el.querySelectorAll("[data-reveal]");
@@ -29,14 +26,33 @@
   };
 
   window.kubaMotion = {
-    // A Blazor app starts with one history entry; anything beyond it was our own navigation.
-    // On narrow screens the section rail scrolls; keep the chosen section in view.
     revealSelected(selector) {
       const rail = document.querySelector(selector);
       const item = rail && rail.querySelector('[aria-selected="true"]');
       if (item) item.scrollIntoView({ block: "nearest", inline: "center", behavior: reduced() ? "auto" : "smooth" });
+      this.markSelected(selector);
     },
-    // Tell a picker when a pointer lands outside it, once, then stop listening.
+    markSelected(selector) {
+      const rail = document.querySelector(selector);
+      const item = rail && rail.querySelector('[aria-selected="true"]');
+      if (!rail || !item) return;
+      const place = () => {
+        rail.style.setProperty("--marker-x", item.offsetLeft + "px");
+        rail.style.setProperty("--marker-w", item.offsetWidth + "px");
+        rail.style.setProperty("--marker-shown", "1");
+      };
+      place();
+      requestAnimationFrame(place);
+      if (!marked.has(rail)) {
+        marked.add(rail);
+        new ResizeObserver(() => {
+          const current = rail.querySelector('[aria-selected="true"]');
+          if (!current) return;
+          rail.style.setProperty("--marker-x", current.offsetLeft + "px");
+          rail.style.setProperty("--marker-w", current.offsetWidth + "px");
+        }).observe(rail);
+      }
+    },
     watchOutside(root, dotnet) {
       const onDown = (e) => {
         if (root.contains(e.target)) return;
@@ -44,6 +60,13 @@
         dotnet.invokeMethodAsync("OutsideClick");
       };
       setTimeout(() => document.addEventListener("pointerdown", onDown, true), 0);
+    },
+    guardKeys(el, keys) {
+      if (el) el.addEventListener("keydown", (e) => { if (keys.includes(e.key)) e.preventDefault(); });
+    },
+    scrollToId(id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ block: "nearest" });
     },
     canGoBack() { return window.history.length > 1 && document.referrer !== "" || window.history.length > 2; },
     animate(el, name) {

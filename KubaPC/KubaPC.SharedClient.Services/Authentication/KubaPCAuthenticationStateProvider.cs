@@ -37,7 +37,6 @@ namespace KubaPC.SharedClient.Services.Authentication
             return new AuthenticationState(new ClaimsPrincipal(identity));
         }
 
-        /// Call after a successful sign-in so the interface updates immediately.
         public async Task MarkUserAsAuthenticated(string token)
         {
             await tokenStore.SetToken(token);

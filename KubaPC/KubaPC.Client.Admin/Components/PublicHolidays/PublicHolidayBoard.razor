@@ -1,0 +1,257 @@
+﻿@inject IPublicHolidayClientService HolidayClient
+@inject ICurrentUserService CurrentUser
+@inject INotificationService Notifications
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <div class="search">
+            @((MarkupString)KubaIcons.Regular.MagnifyingGlass)
+            <input class="kinput" type="search" placeholder="Search holidays" aria-label="Search holidays" value="@search" @oninput="OnSearchInput" />
+        </div>
+        <KubaSelect Items="yearItems" Value="yearId" ValueChanged="OnYearChanged" Placeholder="All years" AriaLabel="Year" />
+        <div class="seg" role="group" aria-label="Show">
+            <button type="button" aria-pressed="@(isActive ? "true" : "false")" @onclick="() => SetActive(true)">Active</button>
+            <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Removed</button>
+        </div>
+        <span class="toolbar__count">@countLabel</span>
+        @if (canEdit)
+        {
+            <KubaButton Text="New holiday" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
+        }
+    </div>
+
+    @if (!canEdit)
+    {
+        <p class="readonly-note">Only a SuperAdmin can change the calendar.</p>
+    }
+    else if (!isActive)
+    {
+        <p class="readonly-note">Removed dates are no longer counted as public holidays by Form I.</p>
+    }
+
+    @if (confirmTarget is not null)
+    {
+        <div style="padding:12px 16px 0">
+            <InlineConfirm Message="@($"Remove {confirmTarget.HolidayName} on {confirmTarget.HolidayDate:d MMMM yyyy}? Form I will count that date on its weekday frequency instead.")"
+                           ConfirmText="Remove" Busy="confirmBusy" Error="@confirmError" OnConfirm="Deactivate" OnCancel="() => confirmTarget = null" />
+        </div>
+    }
+
+    <MudHidden Breakpoint="Breakpoint.SmAndDown">
+        <MudDataGrid @ref="grid" T="PublicHolidayResponse" ServerData="LoadServerData" SortMode="SortMode.Single" Dense="true"
+                     RowsPerPage="25" Hover="true" FixedHeader="true" Height="calc(100vh - 320px)" Loading="loading" LoadingProgressColor="Color.Primary">
+            <Columns>
+                <TemplateColumn Title="Date" SortBy="@(x => x.HolidayDate)" Sortable="true">
+                    <CellTemplate><div class="name">@context.Item.HolidayDate.ToString("yyyy-MM-dd")</div></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Day" Sortable="false">
+                    <CellTemplate>@context.Item.HolidayDate.ToString("dddd")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Holiday" SortBy="@(x => x.HolidayName)" Sortable="true">
+                    <CellTemplate>@context.Item.HolidayName</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Status" Sortable="false">
+                    <CellTemplate><StatusChip Kind="@(context.Item.IsActive ? StatusChip.StatusKind.Ok : StatusChip.StatusKind.Off)" Text="@(context.Item.IsActive ? "Counted" : "Removed")" /></CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Sortable="false" CellStyle="width:56px">
+                    <CellTemplate>
+                        @if (canEdit)
+                        {
+                            <button class="iconbtn" type="button" aria-label="@($"Actions for {context.Item.HolidayName}")" @onclick="e => OpenRowMenu(e, context.Item)">
+                                <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                            </button>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <NoRecordsContent>
+                <EmptyTile Title="@EmptyTitle" Message="@(canEdit ? "Add each year's dates with New holiday." : null)" Icon="@KubaIcons.Light.CalendarBlank">
+                    @if (!string.IsNullOrWhiteSpace(search)) { <KubaButton Text="Clear search" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="ClearSearch" /> }
+                </EmptyTile>
+            </NoRecordsContent>
+            <PagerContent><MudDataGridPager T="PublicHolidayResponse" PageSizeOptions="new[] { 25, 50, 100 }" /></PagerContent>
+        </MudDataGrid>
+    </MudHidden>
+
+    <MudHidden Breakpoint="Breakpoint.MdAndUp">
+        <div class="tile-list" style="padding:12px">
+            @if (phoneRows.Count == 0 && !loading)
+            {
+                <EmptyTile Title="@EmptyTitle" Icon="@KubaIcons.Light.CalendarBlank" />
+            }
+            @foreach (PublicHolidayResponse row in phoneRows)
+            {
+                <div class="tile tile-row" @key="row.Id">
+                    <span class="tile__edge" style="--edge-color:@(row.IsActive ? "var(--ok)" : "#C9C7D0")" aria-hidden="true"></span>
+                    <div class="grow">
+                        <div class="name">@row.HolidayName</div>
+                        <div class="sub">@row.HolidayDate.ToString("dddd, d MMMM yyyy")</div>
+                    </div>
+                    @if (canEdit)
+                    {
+                        <button class="iconbtn" type="button" aria-label="@($"Actions for {row.HolidayName}")" @onclick="e => OpenRowMenu(e, row)">
+                            <MudIcon Icon="@KubaIcons.Regular.DotsThreeVertical" />
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </MudHidden>
+</BoardTile>
+
+<MudMenu @ref="rowMenu" PositionAtCursor="true" Dense="true">
+    <MudMenuItem Icon="@KubaIcons.Regular.PencilSimple" OnClick="() => drawer?.OpenEdit(menuTarget!)">Edit</MudMenuItem>
+    @if (menuTarget is not null && menuTarget.IsActive)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.XCircle" OnClick="() => OnAskDeactivate(menuTarget!)">Remove</MudMenuItem>
+    }
+    @if (menuTarget is not null && !menuTarget.IsActive)
+    {
+        <MudMenuItem Icon="@KubaIcons.Regular.Check" OnClick="() => Reactivate(menuTarget!)">Restore</MudMenuItem>
+    }
+</MudMenu>
+
+<PublicHolidayDrawer @ref="drawer" OnSaved="Reload" />
+
+@code {
+    private MudDataGrid<PublicHolidayResponse>? grid;
+    private PublicHolidayDrawer? drawer;
+    private MudMenu? rowMenu;
+    private PublicHolidayResponse? menuTarget;
+    private PublicHolidayResponse? confirmTarget;
+    private bool confirmBusy, canEdit, loading;
+    private bool isActive = true;
+    private string? confirmError;
+    private string search = string.Empty, countLabel = string.Empty;
+    private Guid? yearId;
+    private List<DropDownResponse> yearItems = new();
+    private List<PublicHolidayResponse> phoneRows = new();
+    private System.Threading.Timer? debounce;
+
+    private string EmptyTitle => string.IsNullOrWhiteSpace(search) ? "No public holidays captured" : $"Nothing matches \"{search}\"";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await CurrentUser.Get();
+        canEdit = user?.Roles.Contains("SuperAdmin") == true;
+        await LoadYears();
+        await LoadPhoneRows();
+    }
+
+    private async Task LoadYears()
+    {
+        List<int> years = (await HolidayClient.GetYears()).Data ?? new List<int>();
+        yearItems = years.Select((y, i) => new DropDownResponse { Id = new Guid(i + 1, 0, 0, new byte[8]), Value = y.ToString() }).ToList();
+    }
+
+    private int? SelectedYear
+    {
+        get
+        {
+            string? value = yearItems.FirstOrDefault(y => y.Id == yearId)?.Value;
+            return value is null ? null : int.Parse(value);
+        }
+    }
+
+    private PublicHolidayListRequest BuildRequest(int page, int pageSize, string sortBy, bool descending) => new()
+    {
+        Page = page,
+        PageSize = pageSize,
+        Year = SelectedYear,
+        Search = string.IsNullOrWhiteSpace(search) ? null : search,
+        IsActive = isActive,
+        SortBy = sortBy,
+        SortDescending = descending
+    };
+
+    private async Task<GridData<PublicHolidayResponse>> LoadServerData(GridState<PublicHolidayResponse> state, CancellationToken cancellationToken)
+    {
+        loading = true;
+        var sort = state.SortDefinitions.FirstOrDefault();
+        string sortBy = sort is null ? "holidayDate" : char.ToLowerInvariant(sort.SortBy[0]) + sort.SortBy[1..];
+
+        var result = await HolidayClient.GetPaged(BuildRequest(state.Page + 1, state.PageSize, sortBy, sort?.Descending ?? false));
+        loading = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not load the calendar", result.ErrorMessage);
+            countLabel = string.Empty;
+            return new GridData<PublicHolidayResponse> { Items = Array.Empty<PublicHolidayResponse>(), TotalItems = 0 };
+        }
+
+        int from = result.Data.ItemCount == 0 ? 0 : (result.Data.Page - 1) * result.Data.PageSize + 1;
+        int to = Math.Min(result.Data.Page * result.Data.PageSize, (int)result.Data.ItemCount);
+        countLabel = result.Data.ItemCount == 0 ? "No holidays" : $"{from} to {to} of {result.Data.ItemCount}";
+
+        return new GridData<PublicHolidayResponse> { Items = result.Data.Data, TotalItems = (int)result.Data.ItemCount };
+    }
+
+    private async Task LoadPhoneRows()
+    {
+        var result = await HolidayClient.GetPaged(BuildRequest(1, 100, "holidayDate", false));
+        phoneRows = result.Data?.Data ?? new List<PublicHolidayResponse>();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value?.ToString() ?? string.Empty;
+        debounce?.Dispose();
+        debounce = new System.Threading.Timer(_ => InvokeAsync(Reload), null, 300, Timeout.Infinite);
+    }
+
+    private Task OnYearChanged(Guid? id)
+    {
+        yearId = id;
+        return Reload();
+    }
+
+    private Task ClearSearch() { search = string.Empty; return Reload(); }
+
+    private Task SetActive(bool value) { isActive = value; confirmTarget = null; return Reload(); }
+
+    private async Task Reload()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+        await LoadYears();
+        await LoadPhoneRows();
+        StateHasChanged();
+    }
+
+    private async Task OpenRowMenu(MouseEventArgs e, PublicHolidayResponse holiday)
+    {
+        menuTarget = holiday;
+        if (rowMenu is not null) await rowMenu.OpenMenuAsync(e);
+    }
+
+    private void OnAskDeactivate(PublicHolidayResponse holiday) { confirmTarget = holiday; confirmError = null; }
+
+    private async Task Deactivate()
+    {
+        if (confirmTarget is null) return;
+        confirmBusy = true;
+        var result = await HolidayClient.Deactivate(confirmTarget.Id);
+        confirmBusy = false;
+
+        if (!result.IsSuccess) { confirmError = result.ErrorMessage; return; }
+
+        string name = confirmTarget.HolidayName;
+        confirmTarget = null;
+        Notifications.Notify(NotificationLevel.Success, $"{name} removed", null, new NotificationAction("View removed", () => SetActive(false)));
+        await Reload();
+    }
+
+    private async Task Reactivate(PublicHolidayResponse holiday)
+    {
+        var result = await HolidayClient.Reactivate(holiday.Id);
+
+        if (!result.IsSuccess)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not restore", result.ErrorMessage);
+            return;
+        }
+
+        Notifications.Notify(NotificationLevel.Success, $"{holiday.HolidayName} restored", null, new NotificationAction("View active", () => SetActive(true)));
+        await Reload();
+    }
+}

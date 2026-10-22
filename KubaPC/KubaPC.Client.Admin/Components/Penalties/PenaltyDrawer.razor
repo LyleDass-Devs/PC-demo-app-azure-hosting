@@ -88,7 +88,6 @@
     private decimal? randAmount;
     private Guid? chosenContractId;
 
-    // Text lookups get a stable id each so the picker can address them: the id encodes the option's position.
     private List<DropDownResponse> typeItems = new(), revenueItems = new();
     private Guid? penaltyTypeId, revenueTypeId;
 
@@ -109,7 +108,6 @@
     private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
     private ElementReference statusLine;
 
-    // The counting scope comes from the chosen type: trip, vehicle or contract.
     private string ScopeWord => Lookups.PenaltyTypes.FirstOrDefault(t => t.Value == penaltyType)?.EscalationCountingScope.ToLowerInvariant() ?? "trip, vehicle or contract";
 
     public void OpenCreate()

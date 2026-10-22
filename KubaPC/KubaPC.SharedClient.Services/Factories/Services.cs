@@ -3,8 +3,7 @@ using System.Reflection;
 
 namespace KubaPC.SharedClient.Services.Factories
 {
-    /// Registers the shared client services with Autofac. Both client
-    /// applications load this module, so neither maintains its own list.
+
     public class Services : Autofac.Module
     {
         protected override void Load(ContainerBuilder builder)

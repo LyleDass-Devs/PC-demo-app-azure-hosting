@@ -1,8 +1,6 @@
 @inherits LayoutComponentBase
 @inject IRailStore RailStore
 
-@* The shell only exists for a signed-in user; an anonymous visitor gets the routed body
-   alone, which is the redirect to sign in. *@
 <AuthorizeView>
     <Authorized>
         <div class="shell @(collapsed ? "shell--mini" : "")">

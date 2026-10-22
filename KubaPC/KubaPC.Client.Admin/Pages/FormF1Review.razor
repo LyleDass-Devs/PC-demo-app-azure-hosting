@@ -1,0 +1,371 @@
+@page "/form-f1-review"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Authoriser,Admin,DOT")]
+@inject IContractClientService ContractClient
+@inject IFormF1ClientService FormClient
+@inject INotificationService Notifications
+@inject PageHeader Header
+
+<PageTitle>Review Form F1 · KubaPC</PageTitle>
+
+<BackLink Fallback="@ClientRoutes.HOME" />
+
+<BoardTile Class="tile--flush">
+    <div class="toolbar">
+        <div class="search">
+            @((MarkupString)KubaIcons.Regular.MagnifyingGlass)
+            <input class="kinput" type="search" placeholder="Search by description" aria-label="Search records" value="@search" @oninput="OnSearchInput" />
+        </div>
+        <KubaSelect Items="contracts" Value="contractId" ValueChanged="OnContractChanged" Placeholder="All contracts" AriaLabel="Contract" />
+        <KubaSelect Items="typeItems" Value="typeId" ValueChanged="OnTypeChanged" Placeholder="All record types" AriaLabel="Record type" />
+        <KubaSelect Items="roleItems" Value="roleId" ValueChanged="OnRoleChanged" Placeholder="Both roles" AriaLabel="Captured by" />
+        <span class="toolbar__count">@countLabel</span>
+    </div>
+
+    <nav class="seg seg--wide" role="tablist" aria-label="Decision state">
+        @foreach (StatusTab tab in TABS)
+        {
+            StatusTab current = tab;
+            <button type="button" role="tab" aria-selected="@(status == current.Status ? "true" : "false")" @onclick="() => SetStatus(current.Status)">
+                @current.Label
+                @if (counts.TryGetValue(current.Status ?? string.Empty, out int count) && count > 0)
+                {
+                    <span class="seg__count">@count</span>
+                }
+            </button>
+        }
+    </nav>
+
+    @if (loading)
+    {
+        <p class="readonly-note">Loading records…</p>
+    }
+    else if (groups.Count == 0)
+    {
+        <EmptyTile Title="@EmptyTitle" Message="@EmptyMessage" Icon="@KubaIcons.Light.CheckCircle" />
+    }
+    else
+    {
+        <div class="rgrid rgrid--four" role="table" aria-label="Form F1 records">
+            <div class="rgrid__head" role="row">
+                <span role="columnheader">Record</span>
+                <span role="columnheader">Captured by</span>
+                <span role="columnheader">Status</span>
+                <span role="columnheader" class="rgrid__action"><span class="sr-only">Action</span></span>
+            </div>
+
+            @foreach (TripGroup group in groups)
+            {
+                <div class="rgrid__trip" role="row" @key="group.TripId">
+                    <span class="rgrid__trip-name">@group.RouteNumber · trip @group.TripNumber</span>
+                    <span class="rgrid__trip-date">@group.TripDate.ToString("ddd d MMM yyyy")</span>
+                    <span class="rgrid__trip-count">@group.Records.Count @(group.Records.Count == 1 ? "record" : "records")</span>
+                </div>
+
+                @foreach (FormF1RecordResponse row in group.Records)
+                {
+                    <div class="rgrid__row @(decisionTarget?.Id == row.Id ? "rgrid__row--open" : "") @(matching?.Id == row.Id && decisionTarget is not null ? "rgrid__row--match" : "")" role="row" @key="row.Id">
+                        <div class="rgrid__penalty" role="cell">
+                            <span class="rgrid__code">@row.RecordType</span>
+                            <span class="rgrid__text">@row.Reason</span>
+                            @if (!string.IsNullOrWhiteSpace(row.DnoReasonValue) || !string.IsNullOrWhiteSpace(row.StatusReason))
+                            {
+                                <span class="rgrid__note">
+                                    @if (!string.IsNullOrWhiteSpace(row.DnoReasonValue)) { <span>@row.DnoReasonValue: @row.DnoExplanation</span> }
+                                    @if (!string.IsNullOrWhiteSpace(row.StatusReason)) { <span>Reason: @row.StatusReason</span> }
+                                </span>
+                            }
+                        </div>
+                        <div class="rgrid__who" role="cell">
+                            <span class="chip">@row.CapturedByRole</span>
+                            <span class="rgrid__text">@row.CapturedByName</span>
+                            @if (row.StatusUpdatedByName is not null)
+                            {
+                                <span class="rgrid__note">Decided by @row.StatusUpdatedByName · @RelativeTime.Describe(row.StatusUpdatedAt)</span>
+                            }
+                        </div>
+                        <div class="rgrid__status" role="cell">
+                            <StatusChip Kind="@StatusKind(row.RecordStatus)" Text="@row.RecordStatus" />
+                        </div>
+                        <div class="rgrid__action" role="cell">
+                            @if (canDecide)
+                            {
+                                <KubaButton Text="Review" Small="true" Icon="@KubaIcons.Regular.CaretRight" OnClick="() => OpenDecision(row)" />
+                            }
+                        </div>
+                    </div>
+
+                    @if (decisionTarget?.Id == row.Id)
+                    {
+                        <div class="rgrid__decision" role="row">
+                            <div class="rgrid__decision-main">
+                                <div class="status-line" role="alert">@decisionError</div>
+                                <div class="seg" role="group" aria-label="Decision">
+                                    <button type="button" aria-pressed="@(decision == APPROVED ? "true" : "false")" @onclick="() => SetDecision(APPROVED)">Approve</button>
+                                    <button type="button" aria-pressed="@(decision == REJECTED ? "true" : "false")" @onclick="() => SetDecision(REJECTED)">Reject</button>
+                                    <button type="button" aria-pressed="@(decision == DISPUTED ? "true" : "false")" @onclick="() => SetDecision(DISPUTED)">Dispute</button>
+                                </div>
+                                <div class="field">
+                                    <label for="decision-reason">Reason @(decision == APPROVED ? "(optional)" : "")</label>
+                                    <input id="decision-reason" class="kinput" @bind="decisionReason" autocomplete="off" placeholder="@ReasonPlaceholder" />
+                                </div>
+                            </div>
+                            <div class="rgrid__decision-side">
+                                @if (matching?.Id is not null && matching.IsUndecided)
+                                {
+                                    <label class="check">
+                                        <input type="checkbox" @bind="cascade" />
+                                        <span>
+                                            <b>Also decide the @matching.CapturedByRole @matching.RecordType.ToLowerInvariant() record on this trip</b>
+                                            <small>Captured by @matching.CapturedByName @RelativeTime.Describe(matching.CapturedAt), still awaiting a decision. It is highlighted in the list. One outcome is recorded either way.</small>
+                                        </span>
+                                    </label>
+                                }
+                                else if (matching?.Id is not null)
+                                {
+                                    <p class="rgrid__note">The @matching.CapturedByRole @matching.RecordType.ToLowerInvariant() record on this trip, by @matching.CapturedByName, has already been decided: @matching.RecordStatus. It is highlighted in the list.</p>
+                                }
+                                else
+                                {
+                                    <p class="rgrid__note">No other role has recorded a @decisionTarget.RecordType.ToLowerInvariant() on this trip.</p>
+                                }
+                                <div class="kdrawer__actions">
+                                    <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="CloseDecision" Disabled="decisionBusy" />
+                                    <KubaButton Text="@($"Save {decision.ToLowerInvariant()}")" Icon="@KubaIcons.Regular.Check" Busy="decisionBusy" OnClick="SaveDecision" />
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    }
+</BoardTile>
+
+@code {
+    private const string SUBMITTED = "Submitted";
+    private const string APPROVED = "Approved";
+    private const string REJECTED = "Rejected";
+    private const string DISPUTED = "Under Dispute";
+
+    private sealed record StatusTab(string Label, string? Status);
+
+    private sealed record TripGroup(Guid TripId, string RouteNumber, string TripNumber, DateOnly TripDate, List<FormF1RecordResponse> Records);
+
+    private static readonly StatusTab[] TABS =
+    {
+        new("Awaiting decision", SUBMITTED),
+        new("Under dispute", DISPUTED),
+        new("Approved", APPROVED),
+        new("Rejected", REJECTED),
+        new("Everything", null)
+    };
+
+    private static readonly List<DropDownResponse> roleItems = new()
+    {
+        new DropDownResponse { Id = new Guid(1, 0, 0, new byte[8]), Value = "Operator Staff" },
+        new DropDownResponse { Id = new Guid(2, 0, 0, new byte[8]), Value = "Monitor" }
+    };
+
+    private bool loading, canDecide, decisionBusy, cascade;
+    private string? status = SUBMITTED;
+    private string search = string.Empty, countLabel = string.Empty;
+    private string decision = APPROVED;
+    private string? decisionReason, decisionError;
+    private Guid? contractId, roleId, typeId;
+    private List<DropDownResponse> contracts = new(), typeItems = new();
+    private List<TripGroup> groups = new();
+    private readonly Dictionary<string, int> counts = new();
+    private FormF1RecordResponse? decisionTarget;
+    private MatchingFormF1Response? matching;
+    private System.Threading.Timer? debounce;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string ReasonPlaceholder => decision == APPROVED ? "Optional note for the record" : "Required: why this decision was made";
+
+    private string EmptyTitle => status switch
+    {
+        SUBMITTED => "Nothing waiting on you",
+        DISPUTED => "No records under dispute",
+        APPROVED => "No approved records yet",
+        REJECTED => "No rejected records",
+        _ => "No Form F1 records captured yet"
+    };
+
+    private string? EmptyMessage => status == SUBMITTED
+        ? "Every Form F1 record has been decided. A certificate cannot be approved while any record is still under dispute."
+        : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Header.Set("Review Form F1");
+
+        if (AuthenticationState is not null)
+        {
+            AuthenticationState state = await AuthenticationState;
+            canDecide = state.User.IsInRole("Authoriser") || state.User.IsInRole("SuperAdmin");
+        }
+
+        contracts = (await ContractClient.GetDropDown(null)).Data ?? new List<DropDownResponse>();
+
+        var lookups = await FormClient.GetLookups();
+        typeItems = (lookups.Data?.RecordTypes ?? new List<string>()).Select((t, i) => new DropDownResponse { Id = new Guid(i + 1, 0, 0, new byte[8]), Value = t }).ToList();
+
+        await Load();
+    }
+
+    private FormF1ListRequest BuildRequest(string? recordStatus) => new()
+    {
+        RecordStatus = recordStatus,
+        ContractId = contractId,
+        RecordType = typeItems.FirstOrDefault(t => t.Id == typeId)?.Value,
+        CapturedByRole = roleItems.FirstOrDefault(r => r.Id == roleId)?.Value,
+        Search = string.IsNullOrWhiteSpace(search) ? null : search,
+        Page = 1,
+        PageSize = 100,
+        SortBy = "tripDate",
+        SortDescending = true
+    };
+
+    private async Task Load()
+    {
+        loading = true;
+        StateHasChanged();
+
+        var result = await FormClient.GetPaged(BuildRequest(status));
+        loading = false;
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Notifications.Notify(NotificationLevel.Error, "Could not load the records", result.ErrorMessage);
+            return;
+        }
+
+        groups = result.Data.Data
+            .GroupBy(r => r.TripId)
+            .Select(g => new TripGroup(g.Key, g.First().RouteNumber, g.First().TripNumber, g.First().TripDate, g.OrderBy(r => r.RecordType).ThenBy(r => r.CapturedByRole).ToList()))
+            .OrderByDescending(g => g.TripDate)
+            .ThenBy(g => g.TripNumber)
+            .ToList();
+
+        long shown = result.Data.ItemCount;
+        countLabel = shown == 0 ? "Nothing to show" : $"{shown} {(shown == 1 ? "record" : "records")}";
+
+        await LoadCounts();
+        StateHasChanged();
+    }
+
+    private async Task LoadCounts()
+    {
+        foreach (StatusTab tab in TABS.Where(t => t.Status is not null))
+        {
+            var result = await FormClient.GetPaged(BuildRequest(tab.Status));
+            counts[tab.Status!] = result.Data is null ? 0 : (int)result.Data.ItemCount;
+        }
+    }
+
+    private Task SetStatus(string? next)
+    {
+        status = next;
+        CloseDecision();
+        return Load();
+    }
+
+    private Task OnContractChanged(Guid? id)
+    {
+        contractId = id;
+        CloseDecision();
+        return Load();
+    }
+
+    private Task OnTypeChanged(Guid? id)
+    {
+        typeId = id;
+        CloseDecision();
+        return Load();
+    }
+
+    private Task OnRoleChanged(Guid? id)
+    {
+        roleId = id;
+        CloseDecision();
+        return Load();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value?.ToString() ?? string.Empty;
+        debounce?.Dispose();
+        debounce = new System.Threading.Timer(_ => InvokeAsync(Load), null, 300, Timeout.Infinite);
+    }
+
+    private async Task OpenDecision(FormF1RecordResponse record)
+    {
+        decisionTarget = record;
+        decision = record.RecordStatus == SUBMITTED ? APPROVED : record.RecordStatus;
+        decisionReason = null;
+        decisionError = null;
+        cascade = false;
+        matching = null;
+
+        var result = await FormClient.GetMatching(record.Id);
+        matching = result.Data;
+        cascade = matching?.Id is not null && matching.IsUndecided;
+        StateHasChanged();
+    }
+
+    private void SetDecision(string next)
+    {
+        decision = next;
+        decisionError = null;
+    }
+
+    private void CloseDecision()
+    {
+        decisionTarget = null;
+        matching = null;
+        decisionError = null;
+        decisionReason = null;
+    }
+
+    private async Task SaveDecision()
+    {
+        if (decisionTarget is null) return;
+
+        if (decision != APPROVED && string.IsNullOrWhiteSpace(decisionReason))
+        {
+            decisionError = "Give a reason for this decision.";
+            return;
+        }
+
+        decisionBusy = true;
+        var result = await FormClient.Review(new ReviewFormF1RecordRequest
+        {
+            Id = decisionTarget.Id,
+            RecordStatus = decision,
+            StatusReason = decisionReason,
+            CascadeToMatching = cascade && matching?.Id is not null && matching.IsUndecided
+        });
+        decisionBusy = false;
+
+        if (!result.IsSuccess)
+        {
+            decisionError = result.HasValidationErrors ? result.ValidationErrors.Values.First().First() : result.ErrorMessage;
+            return;
+        }
+
+        string type = decisionTarget.RecordType;
+        bool both = cascade && matching?.Id is not null && matching.IsUndecided;
+        CloseDecision();
+        Notifications.Notify(NotificationLevel.Success, $"{type} {decision.ToLowerInvariant()}", both ? "Both records decided; one outcome recorded." : null);
+        await Load();
+    }
+
+    private static StatusChip.StatusKind StatusKind(string status) => status switch
+    {
+        APPROVED => StatusChip.StatusKind.Ok,
+        REJECTED => StatusChip.StatusKind.Off,
+        DISPUTED => StatusChip.StatusKind.Danger,
+        _ => StatusChip.StatusKind.Pending
+    };
+}

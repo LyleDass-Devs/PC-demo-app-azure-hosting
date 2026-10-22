@@ -1,0 +1,194 @@
+@inject IPenaltyCaptureClientService CaptureClient
+@inject INotificationService Notifications
+
+<MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(520px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
+    <MudFocusTrap Disabled="!open" DefaultFocus="DefaultFocus.FirstChild">
+        <div class="kdrawer__head">
+            <h2>@(isEdit ? "Edit capture" : "Capture penalty")</h2>
+            <button class="iconbtn kdrawer__close" type="button" aria-label="Close" @onclick="Close" disabled="@busy"><MudIcon Icon="@KubaIcons.Regular.X" /></button>
+        </div>
+        <p class="lede">@TripLabel</p>
+
+        <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
+
+        <form @onsubmit="Save" @onsubmit:preventDefault novalidate>
+            <div class="field">
+                <label for="capture-type">Penalty type</label>
+                <KubaSelect Id="capture-type" Items="typeItems" Value="penaltyTypeId" ValueChanged="OnTypeChanged" Placeholder="All types" AriaLabel="Penalty type" />
+                <span class="field__hint">Narrows the penalty list below. It is not stored on the capture.</span>
+            </div>
+
+            <div class="field">
+                <label for="capture-item">Penalty</label>
+                <KubaSelect Id="capture-item" Items="items" Value="penaltyListItemId" ValueChanged="OnItemChanged" Placeholder="Choose a penalty" AriaLabel="Penalty" AllowEmpty="false" Invalid="@(FieldError("penaltyListItemId") is not null)" />
+                @if (items.Count == 0)
+                {
+                    <span class="field__hint field__hint--warn">This contract has no active penalty of that type. Ask your administrator to add one, or choose another type.</span>
+                }
+                @if (FieldError("penaltyListItemId") is string e1) { <span class="field__error">@e1</span> }
+            </div>
+
+            @if (NeedsVehicle)
+            {
+                <div class="field">
+                    <label for="capture-vehicle">Vehicle</label>
+                    <KubaSelect Id="capture-vehicle" Items="Vehicles" @bind-Value="vehicleId" Placeholder="Choose a vehicle" AriaLabel="Vehicle" AllowEmpty="false" />
+                    <span class="field__hint">Repeat counting for this penalty type follows the vehicle, so it is required.</span>
+                </div>
+            }
+
+            <div class="field">
+                <label for="capture-detail">Trip detail <span class="field__optional">optional</span></label>
+                <input id="capture-detail" class="kinput @Invalid("tripDetail")" @bind="tripDetail" autocomplete="off" placeholder="What was observed" />
+                @if (FieldError("tripDetail") is string e2) { <span class="field__error">@e2</span> }
+            </div>
+
+            @if (isEdit)
+            {
+                <div class="field">
+                    <label for="capture-reason">Reason for the change</label>
+                    <input id="capture-reason" class="kinput @Invalid("reason")" @bind="reason" autocomplete="off" required />
+                    <span class="field__hint">Kept on the audit trail with the old and new values.</span>
+                    @if (FieldError("reason") is string e3) { <span class="field__error">@e3</span> }
+                </div>
+            }
+
+            <div class="kdrawer__actions">
+                <KubaButton Text="Cancel" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="Close" Disabled="busy" />
+                <KubaButton Type="submit" Text="@(isEdit ? "Save changes" : "Submit penalty")" Icon="@KubaIcons.Regular.Check" Busy="busy" />
+            </div>
+        </form>
+    </MudFocusTrap>
+</MudDrawer>
+
+@code {
+    [Parameter] public Guid? PaymentCertificateId { get; set; }
+    [Parameter] public Guid ContractId { get; set; }
+    [Parameter] public Guid RouteId { get; set; }
+    [Parameter] public Guid TripId { get; set; }
+    [Parameter] public string TripLabel { get; set; } = string.Empty;
+    [Parameter] public List<DropDownResponse> Vehicles { get; set; } = new();
+    [Parameter] public List<PenaltyTypeResponse> PenaltyTypes { get; set; } = new();
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private static readonly string[] VEHICLE_SCOPED_TYPES = { "Unroadworthy", "Unsatisfactory Vehicle Condition" };
+
+    private bool open, isEdit, busy;
+    private Guid editingId;
+    private Guid? penaltyTypeId, penaltyListItemId, vehicleId;
+    private string chosenType = string.Empty;
+    private string? tripDetail, reason;
+    private string? error;
+    private List<DropDownResponse> typeItems = new(), items = new();
+    private IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
+    private ElementReference statusLine;
+
+    private bool NeedsVehicle => VEHICLE_SCOPED_TYPES.Contains(chosenType);
+
+    protected override void OnParametersSet()
+    {
+        typeItems = PenaltyTypes.Select((t, i) => new DropDownResponse { Id = IdFor(i), Value = t.Value }).ToList();
+    }
+
+    private static Guid IdFor(int index) => new Guid(index + 1, 0, 0, new byte[8]);
+
+    public async Task OpenCreate()
+    {
+        Reset();
+        isEdit = false;
+        await LoadItems();
+        open = true;
+        StateHasChanged();
+    }
+
+    public async Task OpenEdit(PenaltyCaptureResponse capture)
+    {
+        Reset();
+        isEdit = true;
+        editingId = capture.Id;
+        chosenType = capture.PenaltyType;
+        penaltyTypeId = typeItems.FirstOrDefault(t => t.Value == chosenType)?.Id;
+        vehicleId = capture.VehicleId;
+        tripDetail = capture.TripDetail;
+        await LoadItems();
+        penaltyListItemId = capture.PenaltyListItemId;
+        open = true;
+        StateHasChanged();
+    }
+
+    private void Reset()
+    {
+        error = null;
+        fieldErrors = new Dictionary<string, string[]>();
+        penaltyTypeId = penaltyListItemId = vehicleId = null;
+        chosenType = string.Empty;
+        tripDetail = reason = null;
+        busy = false;
+    }
+
+    private async Task OnTypeChanged(Guid? id)
+    {
+        penaltyTypeId = id;
+        chosenType = typeItems.FirstOrDefault(t => t.Id == id)?.Value ?? string.Empty;
+        penaltyListItemId = null;
+        if (!NeedsVehicle) vehicleId = null;
+        await LoadItems();
+    }
+
+    private void OnItemChanged(Guid? id)
+    {
+        penaltyListItemId = id;
+    }
+
+    private async Task LoadItems()
+    {
+        var result = await CaptureClient.GetPenaltyItems(ContractId, string.IsNullOrEmpty(chosenType) ? null : chosenType);
+        items = result.Data ?? new List<DropDownResponse>();
+    }
+
+    private string? FieldError(string field) => fieldErrors.TryGetValue(field, out string[]? messages) ? messages.FirstOrDefault() : null;
+
+    private string Invalid(string field) => FieldError(field) is null ? string.Empty : "invalid";
+
+    private void Close() => open = false;
+
+    private async Task Save()
+    {
+        error = null; fieldErrors = new Dictionary<string, string[]>(); busy = true;
+
+        var result = isEdit
+            ? await CaptureClient.Update(new UpdatePenaltyCaptureRequest
+            {
+                Id = editingId,
+                RouteId = RouteId,
+                TripId = TripId,
+                PenaltyListItemId = penaltyListItemId ?? Guid.Empty,
+                VehicleId = vehicleId,
+                TripDetail = tripDetail,
+                Reason = reason ?? string.Empty
+            })
+            : (await CaptureClient.Create(new CreatePenaltyCaptureRequest
+            {
+                PaymentCertificateId = PaymentCertificateId,
+                RouteId = RouteId,
+                TripId = TripId,
+                PenaltyListItemId = penaltyListItemId ?? Guid.Empty,
+                VehicleId = vehicleId,
+                TripDetail = tripDetail
+            })) as KubaPC.SharedClient.Services.Models.ApiResult;
+
+        busy = false;
+
+        if (!result.IsSuccess)
+        {
+            fieldErrors = result.ValidationErrors;
+            error = result.HasValidationErrors ? null : result.ErrorMessage;
+            if (error is not null) await statusLine.FocusAsync();
+            return;
+        }
+
+        open = false;
+        Notifications.Notify(NotificationLevel.Success, isEdit ? "Capture updated" : "Penalty captured", items.FirstOrDefault(i => i.Id == penaltyListItemId)?.Value);
+        await OnSaved.InvokeAsync();
+    }
+}

@@ -3,7 +3,7 @@ using KubaPC.SharedClient.Services;
 
 namespace KubaPC.SharedClient.Components.Navigation
 {
-    /// <summary>One list for both apps; the rail and tab bar filter it by the signed-in user's roles.</summary>
+
     public static class KubaDestinations
     {
         public static readonly IReadOnlyList<NavDestination> All = new[]

@@ -1,0 +1,162 @@
+@using System.Globalization
+@inject IJSRuntime JavaScript
+
+<div class="kmulti @Class @(Invalid ? "kmulti--invalid" : "") @(Disabled ? "kmulti--disabled" : "")">
+    @if (chosen.Count > 0)
+    {
+        <div class="kmulti__chosen" aria-label="Chosen">
+            @foreach (DropDownResponse item in chosen)
+            {
+                <button type="button" class="chip chip--on chip--remove" aria-label="@($"Remove {item.Value}")" disabled="@Disabled" @onclick="() => Remove(item.Id)" @key="item.Id">
+                    <span>@item.Value</span>
+                    @((MarkupString)KubaIcons.Regular.X)
+                </button>
+            }
+        </div>
+    }
+
+    <div class="search kmulti__search">
+        @((MarkupString)KubaIcons.Regular.MagnifyingGlass)
+        <input id="@Id" class="kinput" type="search" autocomplete="off" spellcheck="false" placeholder="@Placeholder" aria-label="@(AriaLabel ?? Placeholder)"
+               role="combobox" aria-expanded="true" aria-controls="@ListId" aria-activedescendant="@(highlight < 0 ? null : OptionId(highlight))"
+               value="@query" disabled="@Disabled" @ref="input" @oninput="OnInput" @onkeydown="OnKey" />
+        <span class="kmulti__count">@CountText</span>
+    </div>
+
+    <ul id="@ListId" class="kmulti__list" role="listbox" aria-multiselectable="@(Single ? "false" : "true")">
+        @for (int i = 0; i < visible.Count; i++)
+        {
+            int index = i;
+            DropDownResponse item = visible[i];
+            bool on = Value.Contains(item.Id);
+            <li id="@OptionId(index)" role="option" class="kmulti__item @(highlight == index ? "kmulti__item--focus" : "")" aria-selected="@(on ? "true" : "false")" @key="item.Id"
+                @onclick="() => Toggle(item.Id)" @onmouseenter="() => highlight = index">
+                <span class="kmulti__mark" aria-hidden="true">@((MarkupString)KubaIcons.Regular.Check)</span>
+                <span class="kmulti__label">@Highlight(item.Value)</span>
+            </li>
+        }
+        @if (visible.Count == 0)
+        {
+            <li class="kmulti__item kmulti__item--none">@(Items.Count == 0 ? EmptyText : $"Nothing matches \"{query}\"")</li>
+        }
+    </ul>
+</div>
+
+@code {
+    [Parameter] public HashSet<Guid> Value { get; set; } = new();
+    [Parameter] public EventCallback<HashSet<Guid>> ValueChanged { get; set; }
+    [Parameter] public List<DropDownResponse> Items { get; set; } = new();
+    [Parameter] public bool Single { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Search";
+    [Parameter] public string EmptyText { get; set; } = "Nothing to choose from";
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Invalid { get; set; }
+
+    private string query = string.Empty;
+    private int highlight = -1;
+    private ElementReference input;
+    private List<DropDownResponse> visible = new(), chosen = new();
+    private readonly string listId = "kmulti-" + Guid.NewGuid().ToString("N")[..8];
+
+    private string ListId => listId;
+    private string OptionId(int index) => $"{listId}-{index}";
+
+    private string CountText => query.Length == 0 ? $"{Items.Count} listed" : $"{visible.Count} of {Items.Count}";
+
+    protected override void OnParametersSet()
+    {
+        chosen = Items.Where(i => Value.Contains(i.Id)).ToList();
+        Filter();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await JavaScript.InvokeVoidAsync("kubaMotion.guardKeys", input, new[] { "Enter", "ArrowDown", "ArrowUp" });
+    }
+
+    private void Filter()
+    {
+        visible = query.Length == 0
+            ? Items
+            : Items.Where(i => CultureInfo.InvariantCulture.CompareInfo.IndexOf(i.Value, query, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0).ToList();
+        if (highlight >= visible.Count) highlight = visible.Count - 1;
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        query = (e.Value?.ToString() ?? string.Empty).TrimStart();
+        highlight = query.Length == 0 ? -1 : 0;
+        Filter();
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (visible.Count > 0) highlight = (highlight + 1) % visible.Count;
+                await Reveal();
+                break;
+            case "ArrowUp":
+                if (visible.Count > 0) highlight = highlight <= 0 ? visible.Count - 1 : highlight - 1;
+                await Reveal();
+                break;
+            case "Enter":
+                if (highlight >= 0 && highlight < visible.Count) await Toggle(visible[highlight].Id);
+                break;
+            case "Escape":
+                query = string.Empty; highlight = -1; Filter();
+                break;
+            case "Backspace":
+                if (query.Length == 0 && chosen.Count > 0) await Remove(chosen[^1].Id);
+                break;
+        }
+    }
+
+    private async Task Toggle(Guid id)
+    {
+        if (Disabled) return;
+        HashSet<Guid> next = new(Value);
+        if (!next.Remove(id))
+        {
+            if (Single) next.Clear();
+            next.Add(id);
+        }
+        await Commit(next);
+    }
+
+    private async Task Remove(Guid id)
+    {
+        HashSet<Guid> next = new(Value);
+        next.Remove(id);
+        await Commit(next);
+    }
+
+    private async Task Commit(HashSet<Guid> next)
+    {
+        Value = next;
+        chosen = Items.Where(i => Value.Contains(i.Id)).ToList();
+        await ValueChanged.InvokeAsync(next);
+    }
+
+    private async Task Reveal()
+    {
+        if (highlight < 0) return;
+        await JavaScript.InvokeVoidAsync("kubaMotion.scrollToId", OptionId(highlight));
+    }
+
+    private MarkupString Highlight(string text)
+    {
+        if (query.Length == 0) return (MarkupString)System.Net.WebUtility.HtmlEncode(text);
+        int at = CultureInfo.InvariantCulture.CompareInfo.IndexOf(text, query, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace);
+        if (at < 0) return (MarkupString)System.Net.WebUtility.HtmlEncode(text);
+        int length = Math.Min(query.Length, text.Length - at);
+        string before = System.Net.WebUtility.HtmlEncode(text[..at]);
+        string hit = System.Net.WebUtility.HtmlEncode(text.Substring(at, length));
+        string after = System.Net.WebUtility.HtmlEncode(text[(at + length)..]);
+        return (MarkupString)$"{before}<mark>{hit}</mark>{after}";
+    }
+}
