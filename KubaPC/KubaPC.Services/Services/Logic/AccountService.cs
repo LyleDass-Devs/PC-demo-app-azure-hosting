@@ -34,12 +34,41 @@ namespace KubaPC.Services.Services.Logic
 
         public async Task<AccountCredentialsModel?> SelectActiveByEmail(string emailAddress)
         {
-            const string sql = @"SELECT id, email_address, full_name, password_hash, must_change_password
+            const string sql = @"SELECT id, email_address, full_name, password_hash, must_change_password, token_version
                                  FROM accounts
                                  WHERE lower(email_address) = lower(@EmailAddress)
                                  AND is_active";
 
             return await _dataAccess.QuerySingleOrDefaultAsync<AccountCredentialsModel>(sql, new { EmailAddress = emailAddress });
+        }
+
+        public async Task<SessionStateModel?> SelectSessionState(Guid accountId)
+        {
+            const string sql = @"SELECT a.is_active, a.token_version, a.must_change_password,
+                                        COALESCE(array_agg(r.role_name) FILTER (WHERE r.role_name IS NOT NULL), '{}') AS role_names
+                                 FROM accounts a
+                                 LEFT JOIN account_roles ar ON ar.account_id = a.id AND ar.is_active
+                                 LEFT JOIN roles r ON r.id = ar.role_id AND r.is_active
+                                 WHERE a.id = @AccountId
+                                 GROUP BY a.id, a.is_active, a.token_version, a.must_change_password";
+
+            SessionStateRowModel? row = await _dataAccess.QuerySingleOrDefaultAsync<SessionStateRowModel>(sql, new { AccountId = accountId });
+
+            return row is null ? null : new SessionStateModel
+            {
+                IsActive = row.IsActive,
+                TokenVersion = row.TokenVersion,
+                MustChangePassword = row.MustChangePassword,
+                RoleNames = row.RoleNames.ToList()
+            };
+        }
+
+        private sealed class SessionStateRowModel
+        {
+            public bool IsActive { get; set; }
+            public int TokenVersion { get; set; }
+            public bool MustChangePassword { get; set; }
+            public string[] RoleNames { get; set; } = Array.Empty<string>();
         }
 
         public async Task<List<string>> SelectRoleNames(Guid accountId)
@@ -129,6 +158,7 @@ namespace KubaPC.Services.Services.Logic
                                SET password_hash = @PasswordHash,
                                    password_changed_at = now(),
                                    must_change_password = FALSE,
+                                   token_version = token_version + 1,
                                    modified_at = now(),
                                    modified_by = @AccountId
                                WHERE id = @AccountId AND is_active";
@@ -274,21 +304,23 @@ namespace KubaPC.Services.Services.Logic
                 return AccountOperationResult.Failure("This is the last SuperAdmin account; its SuperAdmin role cannot be removed.");
             }
 
-            int updatedCount = await SaveAccountAndRoles(request, modifiedBy);
+            int updatedCount = await SaveAccountAndRoles(request, modifiedBy, areRolesChanging);
 
             return updatedCount == 0
                 ? AccountOperationResult.Failure("No active account was found with that id.")
                 : AccountOperationResult.Success();
         }
 
-        private async Task<int> SaveAccountAndRoles(UpdateAccountRequest request, Guid modifiedBy)
+        private async Task<int> SaveAccountAndRoles(UpdateAccountRequest request, Guid modifiedBy, bool areRolesChanging)
         {
             const string sql = @"WITH target_roles AS (
                            SELECT id FROM roles WHERE role_name = ANY(@RoleNames) AND is_active
                          ),
                          updated_account AS (
                            UPDATE accounts
-                           SET full_name = @FullName, modified_at = now(), modified_by = @ModifiedBy
+                           SET full_name = @FullName,
+                               token_version = token_version + CASE WHEN @AreRolesChanging THEN 1 ELSE 0 END,
+                               modified_at = now(), modified_by = @ModifiedBy
                            WHERE id = @AccountId AND is_active
                            RETURNING id
                          ),
@@ -325,6 +357,7 @@ namespace KubaPC.Services.Services.Logic
                 AccountId = request.Id,
                 request.FullName,
                 RoleNames = request.RoleNames.Distinct().ToList(),
+                AreRolesChanging = areRolesChanging,
                 ModifiedBy = modifiedBy
             });
 
@@ -468,7 +501,7 @@ namespace KubaPC.Services.Services.Logic
                          ),
                          deactivated_account AS (
                            UPDATE accounts
-                           SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy
+                           SET is_active = FALSE, token_version = token_version + 1, modified_at = now(), modified_by = @ModifiedBy
                            WHERE id = @AccountId AND is_active
                            RETURNING id
                          )
@@ -582,6 +615,7 @@ namespace KubaPC.Services.Services.Logic
                          SET password_hash = @PasswordHash,
                              password_changed_at = now(),
                              must_change_password = TRUE,
+                             token_version = token_version + 1,
                              modified_at = now(),
                              modified_by = @ModifiedBy
                          WHERE id = @AccountId AND is_active";

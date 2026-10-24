@@ -3,6 +3,7 @@ using System.Text;
 using System.Collections.Generic;
 using KubaPC.Models.Contracts.Authentication.Responses;
 using KubaPC.Models.Internal;
+using KubaPC.Services.Security;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -22,7 +23,8 @@ namespace KubaPC.Services.Helpers
             {
                 new Claim(ClaimTypes.Name, tokenData.User.FullName),    
                 new Claim(ClaimTypes.Email, tokenData.User.EmailAddress),    
-                new Claim("UserId", tokenData.User.Id.ToString())
+                new Claim("UserId", tokenData.User.Id.ToString()),
+                new Claim(SessionValidator.TOKEN_VERSION_CLAIM, tokenData.TokenVersion.ToString())
             };
 
             foreach (string role in tokenData.UserRoles)

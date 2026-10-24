@@ -1,9 +1,13 @@
 ﻿using Autofac;
 using KubaPC.API.Factories;
 using KubaPC.API.Providers;
+using KubaPC.API.Security;
 using KubaPC.Models.Internal;
+using KubaPC.Services.Security;
+using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text;
 
 namespace KubaPC.API
@@ -53,8 +57,12 @@ namespace KubaPC.API
             })
             .AddJwtBearer(x =>
             {
-                x.RequireHttpsMetadata = false;
-                x.SaveToken = true;
+                x.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                x.SaveToken = false;
+                x.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = RevalidateSession
+                };
                 x.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
@@ -67,6 +75,27 @@ namespace KubaPC.API
                     ClockSkew = TimeSpan.Zero
                 };
             });
+        }
+
+        private static async Task RevalidateSession(TokenValidatedContext context)
+        {
+            if (context.Principal?.Identity is not ClaimsIdentity identity
+                || !Guid.TryParse(identity.FindFirst(CallerReader.USER_ID_CLAIM)?.Value, out Guid accountId))
+            {
+                context.Fail(SessionValidator.SESSION_ENDED);
+                return;
+            }
+
+            IAccountService accountService = context.HttpContext.RequestServices.GetRequiredService<IAccountService>();
+            SessionStateModel? state = await accountService.SelectSessionState(accountId);
+
+            if (!SessionValidator.IsCurrent(state, identity.FindFirst(SessionValidator.TOKEN_VERSION_CLAIM)?.Value))
+            {
+                context.Fail(SessionValidator.SESSION_ENDED);
+                return;
+            }
+
+            SessionValidator.Refresh(identity, state!);
         }
 
         public static void BuildAPIAuthorization(this WebApplicationBuilder builder)

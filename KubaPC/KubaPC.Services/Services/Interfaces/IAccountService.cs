@@ -12,6 +12,7 @@ namespace KubaPC.Services.Services.Interfaces
     {
         Task<AccountCredentialsModel?> SelectActiveByEmail(string emailAddress);
         Task<List<string>> SelectRoleNames(Guid accountId);
+        Task<SessionStateModel?> SelectSessionState(Guid accountId);
         Task<int> UpdateLastLogin(Guid accountId);
         Task<CreateAccountResult> CreateAccount(CreateAccountRequest request, Caller caller);
         Task<bool> ChangePassword(Guid accountId, string oldPassword, string newPassword);

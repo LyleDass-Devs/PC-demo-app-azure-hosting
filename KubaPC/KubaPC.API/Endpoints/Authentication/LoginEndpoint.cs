@@ -33,7 +33,6 @@ namespace KubaPC.API.Endpoints.Authentication
                     return;
                 }
 
-                HttpContext.Response.Headers.Append("Authorization", $"Bearer{response.Token}");
                 await Send.OkAsync(response, cancellation: ct);
 
             }

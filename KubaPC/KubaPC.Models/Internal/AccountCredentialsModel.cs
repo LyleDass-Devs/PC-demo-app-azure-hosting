@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace KubaPC.Models.Internal
+﻿namespace KubaPC.Models.Internal
 {
     public class AccountCredentialsModel
     {
@@ -11,6 +7,6 @@ namespace KubaPC.Models.Internal
         public string FullName { get; set; } = string.Empty;
         public string? PasswordHash { get; set; } = string.Empty;
         public bool MustChangePassword { get; set; }
+        public int TokenVersion { get; set; }
     }
 }
- 

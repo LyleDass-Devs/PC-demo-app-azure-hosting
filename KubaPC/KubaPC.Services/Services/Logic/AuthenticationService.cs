@@ -46,6 +46,7 @@ namespace KubaPC.Services.Services.Logic
 
                 UserRoles = roles,
                 MustChangePassword = account.MustChangePassword,
+                TokenVersion = account.TokenVersion
             };
 
             return UserClaimsHelper.GenerateJwtToken(tokenData, appSettings);
