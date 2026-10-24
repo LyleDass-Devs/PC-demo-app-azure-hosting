@@ -1,6 +1,7 @@
-﻿using Autofac;
+using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Blazored.LocalStorage;
+using Blazored.SessionStorage;
 using KubaPC.Client.Admin;
 using KubaPC.SharedClient.Components;
 using KubaPC.SharedClient.Services.Authentication;
@@ -26,6 +27,7 @@ if (string.IsNullOrWhiteSpace(apiBaseUrl))
 builder.Services.AddScoped(serviceProvider => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 
 builder.Services.AddBlazoredLocalStorage();
+builder.Services.AddBlazoredSessionStorage();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddMudServices();
 builder.Services.AddScoped<KubaPC.SharedClient.Components.Layout.PageHeader>();

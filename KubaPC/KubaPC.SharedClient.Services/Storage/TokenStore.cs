@@ -1,7 +1,4 @@
-﻿using Blazored.LocalStorage;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Blazored.SessionStorage;
 
 namespace KubaPC.SharedClient.Services.Storage
 {
@@ -9,35 +6,33 @@ namespace KubaPC.SharedClient.Services.Storage
     {
         private const string TOKEN_KEY = "kubapc.token";
 
-        private readonly ILocalStorageService localStorageService;
+        private readonly ISessionStorageService sessionStorageService;
 
-        public TokenStore(ILocalStorageService localStorageService)
+        public TokenStore(ISessionStorageService sessionStorageService)
         {
-            this.localStorageService = localStorageService;
+            this.sessionStorageService = sessionStorageService;
         }
 
         public async Task<string?> GetToken()
         {
             try
             {
-                return await localStorageService.GetItemAsStringAsync(TOKEN_KEY);
+                return await sessionStorageService.GetItemAsStringAsync(TOKEN_KEY);
             }
             catch (Exception)
             {
-
                 return null;
             }
         }
 
         public async Task SetToken(string token)
         {
-            await localStorageService.SetItemAsStringAsync(TOKEN_KEY, token);
+            await sessionStorageService.SetItemAsStringAsync(TOKEN_KEY, token);
         }
 
         public async Task ClearToken()
         {
-            await localStorageService.RemoveItemAsync(TOKEN_KEY);
+            await sessionStorageService.RemoveItemAsync(TOKEN_KEY);
         }
     }
-
 }

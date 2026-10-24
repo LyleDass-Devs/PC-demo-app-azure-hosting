@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="Autofac" Version="9.3.2" />
     <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
+    <PackageReference Include="Blazored.SessionStorage" Version="2.4.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.11" />
   </ItemGroup>
 
