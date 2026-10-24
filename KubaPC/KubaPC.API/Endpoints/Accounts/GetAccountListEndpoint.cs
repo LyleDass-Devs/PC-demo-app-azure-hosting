@@ -1,4 +1,5 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Accounts.Requests;
 using KubaPC.Models.Contracts.Accounts.Responses;
 using KubaPC.Models.Contracts.Common.Responses;
@@ -26,7 +27,7 @@ namespace KubaPC.API.Endpoints.Accounts
         {
             try
             {
-                PagedResponse<AccountListResponse> response = await accountService.SelectPagedAccountList(request);
+                PagedResponse<AccountListResponse> response = await accountService.SelectPagedAccountList(request, CallerReader.Read(User));
                 await Send.OkAsync(response, cancellation: ct);
             }
             catch (Exception e)

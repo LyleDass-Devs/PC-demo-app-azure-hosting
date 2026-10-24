@@ -1,4 +1,5 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Accounts.Requests;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -25,7 +26,7 @@ namespace KubaPC.API.Endpoints.Accounts
         {
             try
             {
-                await Send.OkAsync(await accountService.SelectOperatorIds(request.Id), cancellation: ct);
+                await Send.OkAsync(await accountService.SelectOperatorIds(request.Id, CallerReader.Read(User)), cancellation: ct);
             }
             catch (Exception exception)
             {

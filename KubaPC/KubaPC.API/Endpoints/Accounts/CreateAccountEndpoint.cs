@@ -1,4 +1,5 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Accounts.Requests;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
@@ -28,18 +29,18 @@ namespace KubaPC.API.Endpoints.Accounts
         {
             try
             {
-                string? createdByClaim = User.FindFirst("UserId")?.Value;
+                Caller caller = CallerReader.Read(User);
 
-                if (!Guid.TryParse(createdByClaim, out Guid createdBy))
-                {
-                    await Send.UnauthorizedAsync(cancellation: ct);
-                    return;
-                }
-
-                CreateAccountResult result = await accountService.CreateAccount(request, createdBy);
+                CreateAccountResult result = await accountService.CreateAccount(request, caller);
 
                 if (!result.IsSuccess)
                 {
+                if (result.IsForbidden)
+                {
+                    await Send.ForbiddenAsync(ct);
+                    return;
+                }
+
                     AddError(result.Error ?? "Account could not be created.");
                     await Send.ErrorsAsync((int)HttpStatusCode.Conflict, cancellation: ct);
                     return;

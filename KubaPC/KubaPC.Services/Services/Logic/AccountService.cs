@@ -1,6 +1,7 @@
-﻿using KubaPC.Models.Contracts.Accounts.Requests;
+using KubaPC.Models.Contracts.Accounts.Requests;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Helpers;
 using System.Collections.Generic;
 using KubaPC.Services.Services.Interfaces;
@@ -16,6 +17,7 @@ namespace KubaPC.Services.Services.Logic
     public class AccountService : BaseService, IAccountService
     {
         private const string SUPER_ADMIN_ROLE = "SuperAdmin";
+        private const string SUPER_ADMIN_ONLY = "Only a SuperAdmin can assign, change or manage a SuperAdmin account.";
         private const string OPERATOR_STAFF_ROLE = "Operator Staff";
         private static readonly Dictionary<string, string> SORTABLE_COLUMNS = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -60,9 +62,14 @@ namespace KubaPC.Services.Services.Logic
             return await _dataAccess.ExecuteAsync(sql, new { AccountId = accountId });
         }
 
-        public async Task<CreateAccountResult> CreateAccount(CreateAccountRequest request, Guid createdBy)
+        public async Task<CreateAccountResult> CreateAccount(CreateAccountRequest request, Caller caller)
         {
+            if (!caller.IsSuperAdmin && request.RoleNames.Contains(SUPER_ADMIN_ROLE))
+            {
+                return CreateAccountResult.Forbidden(SUPER_ADMIN_ONLY);
+            }
 
+            Guid createdBy = caller.AccountId;
             AccountCredentialsModel? existingAccount = await SelectActiveByEmail(request.EmailAddress);
 
             if (existingAccount != null)
@@ -135,7 +142,7 @@ namespace KubaPC.Services.Services.Logic
             return true;
 
         }
-        public async Task<PagedResponse<AccountListResponse>> SelectPagedAccountList(AccountListRequest request)
+        public async Task<PagedResponse<AccountListResponse>> SelectPagedAccountList(AccountListRequest request, Caller caller)
         {
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mappedColumn) ? mappedColumn : "full_name";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
@@ -153,10 +160,22 @@ namespace KubaPC.Services.Services.Logic
                             FROM accounts a
                             WHERE (@Search IS NULL OR a.full_name ILIKE @SearchPattern OR a.email_address ILIKE @SearchPattern)
                               AND (@IsActive IS NULL OR a.is_active = @IsActive)
+                              AND (@IsUnscoped OR (NOT EXISTS (SELECT 1 FROM account_roles sar
+                                                                JOIN roles sr ON sr.id = sar.role_id
+                                                                WHERE sar.account_id = a.id AND sr.role_name = @SuperAdminRole)
+                                                   AND (NOT EXISTS (SELECT 1 FROM account_operators held
+                                                                    JOIN operators ho ON ho.id = held.operator_id AND ho.is_active
+                                                                    WHERE held.account_id = a.id AND held.is_active)
+                                                        OR EXISTS (SELECT 1 FROM account_operators held
+                                                                   JOIN account_operators mine ON mine.operator_id = held.operator_id
+                                                                                               AND mine.account_id = @Actor AND mine.is_active
+                                                                   WHERE held.account_id = a.id AND held.is_active))))
                             ORDER BY {sortColumn} {sortDirection}
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
+            OperatorScope.AddParameters(parameters, caller);
+            parameters.Add("SuperAdminRole", SUPER_ADMIN_ROLE, DbType.String);
             parameters.Add("Search", request.Search, DbType.String);
             parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
@@ -217,8 +236,21 @@ namespace KubaPC.Services.Services.Logic
             return otherSuperAdminCount == 0;
         }
 
-        public async Task<AccountOperationResult> UpdateAccount(UpdateAccountRequest request, Guid modifiedBy)
+        public async Task<AccountOperationResult> UpdateAccount(UpdateAccountRequest request, Caller caller)
         {
+            AccountOperationResult allowed = await CheckManage(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            if (!caller.IsSuperAdmin && request.RoleNames.Contains(SUPER_ADMIN_ROLE))
+            {
+                return AccountOperationResult.Forbidden(SUPER_ADMIN_ONLY);
+            }
+
+            Guid modifiedBy = caller.AccountId;
 
             if (!await AreAllRoleNamesKnown(request.RoleNames))
             {
@@ -298,7 +330,19 @@ namespace KubaPC.Services.Services.Logic
             return (int)updatedCount;
         }
 
-        public async Task<List<Guid>> SelectOperatorIds(Guid accountId)
+        public async Task<List<Guid>> SelectOperatorIds(Guid accountId, Caller caller)
+        {
+            AccountOperationResult allowed = await CheckManage(caller, accountId);
+
+            if (!allowed.IsSuccess)
+            {
+                return new List<Guid>();
+            }
+
+            return await SelectGrantedOperatorIds(accountId);
+        }
+
+        private async Task<List<Guid>> SelectGrantedOperatorIds(Guid accountId)
         {
             const string sql = @"SELECT ao.operator_id
                                  FROM account_operators ao
@@ -309,9 +353,38 @@ namespace KubaPC.Services.Services.Logic
             return await _dataAccess.QueryAsync<Guid>(sql, new { AccountId = accountId });
         }
 
-        public async Task<AccountOperationResult> UpdateOperators(UpdateAccountOperatorsRequest request, Guid modifiedBy)
+        public async Task<AccountOperationResult> UpdateOperators(UpdateAccountOperatorsRequest request, Caller caller)
         {
+            if (!caller.IsSuperAdmin && request.AccountId == caller.AccountId)
+            {
+                return AccountOperationResult.Forbidden("You cannot change the operators on your own account.");
+            }
+
+            AccountOperationResult allowed = await CheckManage(caller, request.AccountId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             List<Guid> operatorIds = request.OperatorIds.Distinct().ToList();
+
+            if (!caller.IsSuperAdmin)
+            {
+                List<Guid> heldByCaller = await SelectGrantedOperatorIds(caller.AccountId);
+
+                if (operatorIds.Any(operatorId => !heldByCaller.Contains(operatorId)))
+                {
+                    return AccountOperationResult.Forbidden("You can only grant operators your own account holds.");
+                }
+
+                List<Guid> outsideCallerScope = (await SelectGrantedOperatorIds(request.AccountId))
+                    .Where(operatorId => !heldByCaller.Contains(operatorId))
+                    .ToList();
+
+                operatorIds = operatorIds.Union(outsideCallerScope).ToList();
+            }
 
             const string knownSql = @"SELECT count(*) FROM operators WHERE id = ANY(@OperatorIds) AND is_active";
             long knownCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(knownSql, new { OperatorIds = operatorIds });
@@ -369,8 +442,17 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
-        public async Task<AccountOperationResult> DeactivateAccount(Guid accountId, Guid modifiedBy)
+        public async Task<AccountOperationResult> DeactivateAccount(Guid accountId, Caller caller)
         {
+            AccountOperationResult allowed = await CheckManage(caller, accountId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
+
             if (accountId == modifiedBy)
             {
                 return AccountOperationResult.Failure("You cannot deactivate your own account.");
@@ -408,8 +490,16 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
-        public async Task<AccountOperationResult> ReactivateAccount(Guid accountId, Guid modifiedBy)
+        public async Task<AccountOperationResult> ReactivateAccount(Guid accountId, Caller caller)
         {
+            AccountOperationResult allowed = await CheckManage(caller, accountId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string conflictSql = @"SELECT count(*)
                                          FROM accounts other
                                          JOIN accounts target ON target.id = @AccountId
@@ -477,8 +567,16 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
-        public async Task<AccountOperationResult> ResetPassword(Guid accountId, string temporaryPassword, Guid modifiedBy)
+        public async Task<AccountOperationResult> ResetPassword(Guid accountId, string temporaryPassword, Caller caller)
         {
+            AccountOperationResult allowed = await CheckManage(caller, accountId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
 
             if (accountId == modifiedBy)
             {
@@ -501,6 +599,51 @@ namespace KubaPC.Services.Services.Logic
             });
 
             return updatedCount == 0 ? AccountOperationResult.Failure("No active account was found with that id.") : AccountOperationResult.Success();
+        }
+
+        private async Task<AccountOperationResult> CheckManage(Caller caller, Guid targetAccountId)
+        {
+            if (caller.IsSuperAdmin)
+            {
+                return AccountOperationResult.Success();
+            }
+
+            if (await HasEverHeldSuperAdmin(targetAccountId))
+            {
+                return AccountOperationResult.Forbidden(SUPER_ADMIN_ONLY);
+            }
+
+            if (!await SharesOperator(caller.AccountId, targetAccountId))
+            {
+                return AccountOperationResult.Forbidden("That account belongs to an operator your account does not hold.");
+            }
+
+            return AccountOperationResult.Success();
+        }
+
+        private async Task<bool> HasEverHeldSuperAdmin(Guid accountId)
+        {
+            const string sql = @"SELECT count(*)
+                                 FROM account_roles ar
+                                 JOIN roles r ON r.id = ar.role_id
+                                 WHERE ar.account_id = @AccountId AND r.role_name = @RoleName";
+
+            long count = await _dataAccess.QuerySingleOrDefaultAsync<long>(sql, new { AccountId = accountId, RoleName = SUPER_ADMIN_ROLE });
+
+            return count > 0;
+        }
+
+        private async Task<bool> SharesOperator(Guid callerAccountId, Guid targetAccountId)
+        {
+            const string sql = @"SELECT NOT EXISTS (SELECT 1 FROM account_operators held
+                                                    JOIN operators o ON o.id = held.operator_id AND o.is_active
+                                                    WHERE held.account_id = @TargetAccountId AND held.is_active)
+                                     OR EXISTS (SELECT 1 FROM account_operators held
+                                                JOIN account_operators mine ON mine.operator_id = held.operator_id
+                                                                            AND mine.account_id = @CallerAccountId AND mine.is_active
+                                                WHERE held.account_id = @TargetAccountId AND held.is_active)";
+
+            return await _dataAccess.QuerySingleOrDefaultAsync<bool>(sql, new { CallerAccountId = callerAccountId, TargetAccountId = targetAccountId });
         }
 
     }
