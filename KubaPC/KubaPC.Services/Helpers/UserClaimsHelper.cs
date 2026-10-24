@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Collections.Generic;
 using KubaPC.Models.Contracts.Authentication.Responses;
@@ -17,7 +17,7 @@ namespace KubaPC.Services.Helpers
             string bearer = string.Empty;
             DateTime expiration = DateTime.UtcNow.AddHours(appSettings.TokenExpireHours);
 
-            byte[] key = Encoding.ASCII.GetBytes(appSettings.Secret);
+            byte[] key = Encoding.UTF8.GetBytes(appSettings.Secret);
 
             List<Claim> claims = new() 
             {

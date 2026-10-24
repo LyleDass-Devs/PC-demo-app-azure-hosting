@@ -1,10 +1,11 @@
-﻿using Autofac;
+using Autofac;
 using KubaPC.API.Factories;
 using KubaPC.API.Providers;
 using KubaPC.API.Security;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
+using FastEndpoints;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
@@ -15,6 +16,7 @@ namespace KubaPC.API
     public static class StartupExtensions
     {
         public const string CLIENT_CORS_POLICY = "KubaPCClients";
+        private const int MINIMUM_SECRET_BYTES = 64;
         public static void RunTimeEnvironment(this WebApplication app)
         {
             if (app.Environment.IsDevelopment())
@@ -23,8 +25,9 @@ namespace KubaPC.API
             }
             else
             {
-                app.UseExceptionHandler("/Error");
+                app.UseDefaultExceptionHandler();
                 app.UseHsts();
+                app.UseHttpsRedirection();
             }
         }
 
@@ -44,10 +47,15 @@ namespace KubaPC.API
                 throw new InvalidOperationException("AppSettings:Secret is not configured.");
             }
 
+            byte[] key = Encoding.UTF8.GetBytes(appSettings.Secret);
+
+            if (key.Length < MINIMUM_SECRET_BYTES)
+            {
+                throw new InvalidOperationException($"AppSettings:Secret must be at least {MINIMUM_SECRET_BYTES} bytes for HS512. Generate a longer random value.");
+            }
+
             builder.Services.AddSingleton(appSettings);
             builder.Services.AddHttpContextAccessor();
-
-            byte[] key = Encoding.ASCII.GetBytes(appSettings.Secret);
 
             builder.Services.AddAuthentication(x =>
             {
@@ -128,7 +136,6 @@ namespace KubaPC.API
                 .WithOrigins(origins)
                 .WithMethods("GET", "POST", "PUT", "OPTIONS")
                 .WithHeaders("Authorization", "Content-Type")
-                .WithExposedHeaders("Authorization")
                 .SetPreflightMaxAge(TimeSpan.FromMinutes(10)));
             });
         }
