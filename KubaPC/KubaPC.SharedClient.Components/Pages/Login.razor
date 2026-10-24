@@ -1,4 +1,4 @@
-﻿@page "/login"
+@page "/login"
 @layout FocusedLayout
 @inject IAuthenticationClientService Authentication
 @inject NavigationManager Navigation
@@ -78,7 +78,7 @@
             return;
         }
 
-        string target = string.IsNullOrWhiteSpace(ReturnUrl) ? ClientRoutes.HOME : ReturnUrl;
+        string target = SafeReturnUrl(ReturnUrl);
 
         if (result.Data.MustChangePassword)
         {
@@ -87,6 +87,16 @@
         }
 
         Navigation.NavigateTo(target);
+    }
+
+    private static string SafeReturnUrl(string? returnUrl)
+    {
+        if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith('/') || returnUrl.StartsWith("//") || returnUrl.Contains('\\'))
+        {
+            return ClientRoutes.HOME;
+        }
+
+        return returnUrl;
     }
 
 }

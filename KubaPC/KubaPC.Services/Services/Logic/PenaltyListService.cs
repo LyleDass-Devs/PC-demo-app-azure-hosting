@@ -46,7 +46,7 @@ namespace KubaPC.Services.Services.Logic
                             JOIN operators o ON o.id = c.operator_id
                             WHERE (@ContractId IS NULL OR p.contract_id = @ContractId)
                               AND (@OperatorId IS NULL OR c.operator_id = @OperatorId)
-                              AND (@Search IS NULL OR p.penalty_code ILIKE @SearchPattern OR p.description ILIKE @SearchPattern)
+                              AND (@Search IS NULL OR p.penalty_code ILIKE @SearchPattern ESCAPE '\' OR p.description ILIKE @SearchPattern ESCAPE '\')
                               AND (@IsActive IS NULL OR p.is_active = @IsActive)
                               {OperatorScope.ForOperatorColumn("c.operator_id")}
                             ORDER BY {sortColumn} {sortDirection}
@@ -57,7 +57,7 @@ namespace KubaPC.Services.Services.Logic
             parameters.Add("ContractId", request.ContractId, DbType.Guid);
             parameters.Add("OperatorId", request.OperatorId, DbType.Guid);
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);

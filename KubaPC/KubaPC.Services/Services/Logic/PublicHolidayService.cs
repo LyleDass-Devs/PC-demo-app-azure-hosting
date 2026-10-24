@@ -1,9 +1,10 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.PublicHolidays.Requests;
 using KubaPC.Models.Contracts.PublicHolidays.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -30,7 +31,7 @@ namespace KubaPC.Services.Services.Logic
                                    count(*) OVER() AS total_count
                             FROM public_holidays h
                             WHERE (@Year IS NULL OR extract(year FROM h.holiday_date) = @Year)
-                              AND (@Search IS NULL OR h.holiday_name ILIKE @SearchPattern)
+                              AND (@Search IS NULL OR h.holiday_name ILIKE @SearchPattern ESCAPE '\')
                               AND (@IsActive IS NULL OR h.is_active = @IsActive)
                             ORDER BY {sortColumn} {sortDirection}
                             LIMIT @PageSize OFFSET @Offset";
@@ -38,7 +39,7 @@ namespace KubaPC.Services.Services.Logic
             DynamicParameters parameters = new();
             parameters.Add("Year", request.Year, DbType.Int32);
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);

@@ -1,4 +1,4 @@
-﻿using FastEndpoints;
+using FastEndpoints;
 using FluentValidation;
 using KubaPC.Models.Contracts.Authentication.Requests;
 
@@ -8,8 +8,8 @@ namespace KubaPC.API.Validators.Authentication
     {
         public LoginValidator()
         {
-            RuleFor(x => x.EmailAddress).NotEmpty().WithMessage("Email address is required.").EmailAddress();
-            RuleFor(x => x.Password).NotEmpty().WithMessage("Password is required.");
+            RuleFor(x => x.EmailAddress).NotEmpty().WithMessage("Email address is required.").EmailAddress().MaximumLength(320);
+            RuleFor(x => x.Password).NotEmpty().WithMessage("Password is required.").MaximumLength(72);
         }
     }
 }

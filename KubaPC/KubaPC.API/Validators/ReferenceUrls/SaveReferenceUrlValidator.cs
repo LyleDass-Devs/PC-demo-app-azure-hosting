@@ -1,4 +1,4 @@
-﻿using FastEndpoints;
+using FastEndpoints;
 using FluentValidation;
 using KubaPC.Models.Contracts.ReferenceUrls.Requests;
 
@@ -8,7 +8,7 @@ namespace KubaPC.API.Validators.ReferenceUrls
     {
         public SaveReferenceUrlValidator()
         {
-            RuleFor(x => x.UrlKey).NotEmpty();
+            RuleFor(x => x.UrlKey).NotEmpty().MaximumLength(50);
             RuleFor(x => x.UrlValue).NotEmpty().WithMessage("Enter the address.").MaximumLength(2000)
                 .Must(BeHttp).WithMessage("The address must start with https:// or http://.");
         }

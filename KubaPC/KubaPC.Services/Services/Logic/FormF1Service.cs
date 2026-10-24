@@ -57,7 +57,7 @@ namespace KubaPC.Services.Services.Logic
                               AND (@RecordType IS NULL OR f.record_type = @RecordType)
                               AND (@RecordStatus IS NULL OR f.record_status = @RecordStatus)
                               AND (@CapturedByRole IS NULL OR f.captured_by_role = @CapturedByRole)
-                              AND (@Search IS NULL OR f.reason ILIKE @SearchPattern OR f.dno_explanation ILIKE @SearchPattern)
+                              AND (@Search IS NULL OR f.reason ILIKE @SearchPattern ESCAPE '\' OR f.dno_explanation ILIKE @SearchPattern ESCAPE '\')
                               {OperatorScope.ForContractColumn("r.contract_id")}
                             ORDER BY {sortColumn} {sortDirection}, t.trip_number, f.record_type
                             LIMIT @PageSize OFFSET @Offset";
@@ -71,7 +71,7 @@ namespace KubaPC.Services.Services.Logic
             parameters.Add("RecordStatus", request.RecordStatus, DbType.String);
             parameters.Add("CapturedByRole", request.CapturedByRole, DbType.String);
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);
 

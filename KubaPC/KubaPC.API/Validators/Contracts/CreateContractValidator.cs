@@ -1,4 +1,4 @@
-﻿using FastEndpoints;
+using FastEndpoints;
 using FluentValidation;
 using KubaPC.Models.Contracts.Contracts.Requests;
 
@@ -11,6 +11,12 @@ namespace KubaPC.API.Validators.Contracts
             RuleFor(x => x.OperatorId).NotEmpty().WithMessage("Choose an operator.");
             RuleFor(x => x.ContractNumber).NotEmpty().WithMessage("Enter the contract number.").MaximumLength(50);
             RuleFor(x => x.ContractName).MaximumLength(200);
+            RuleFor(x => x.BankName).MaximumLength(100);
+            RuleFor(x => x.BankBranchName).MaximumLength(100);
+            RuleFor(x => x.BankBranchCode).MaximumLength(20);
+            RuleFor(x => x.BankAccountName).MaximumLength(100);
+            RuleFor(x => x.BankAccountNumber).MaximumLength(30);
+            RuleFor(x => x.BankAccountType).MaximumLength(30);
             RuleFor(x => x.CommencementDate).NotEmpty().WithMessage("Enter the commencement date.");
             RuleFor(x => x.ExpiryDate).GreaterThan(x => x.CommencementDate).When(x => x.ExpiryDate.HasValue)
                 .WithMessage("The expiry date must be after the commencement date.");

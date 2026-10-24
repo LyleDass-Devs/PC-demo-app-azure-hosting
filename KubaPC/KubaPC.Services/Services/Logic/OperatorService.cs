@@ -36,7 +36,7 @@ namespace KubaPC.Services.Services.Logic
                                    (SELECT count(*) FROM contracts c WHERE c.operator_id = o.id AND c.is_active) AS contract_count,
                                    count(*) OVER() AS total_count
                             FROM operators o
-                            WHERE (@Search IS NULL OR o.operator_name ILIKE @SearchPattern OR o.id_societe ILIKE @SearchPattern)
+                            WHERE (@Search IS NULL OR o.operator_name ILIKE @SearchPattern ESCAPE '\' OR o.id_societe ILIKE @SearchPattern ESCAPE '\')
                               AND (@IsActive IS NULL OR o.is_active = @IsActive)
                               {OperatorScope.ForOperatorColumn("o.id")}
                             ORDER BY {sortColumn} {sortDirection}
@@ -45,7 +45,7 @@ namespace KubaPC.Services.Services.Logic
             DynamicParameters parameters = new();
             OperatorScope.AddParameters(parameters, caller);
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);

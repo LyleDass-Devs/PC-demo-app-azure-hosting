@@ -41,7 +41,7 @@ namespace KubaPC.Services.Services.Logic
                             FROM contracts c
                             JOIN operators o ON o.id = c.operator_id
                             WHERE (@OperatorId IS NULL OR c.operator_id = @OperatorId)
-                              AND (@Search IS NULL OR c.contract_number ILIKE @SearchPattern OR c.contract_name ILIKE @SearchPattern)
+                              AND (@Search IS NULL OR c.contract_number ILIKE @SearchPattern ESCAPE '\' OR c.contract_name ILIKE @SearchPattern ESCAPE '\')
                               AND (@IsActive IS NULL OR c.is_active = @IsActive)
                               {OperatorScope.ForOperatorColumn("c.operator_id")}
                             ORDER BY {sortColumn} {sortDirection}
@@ -51,7 +51,7 @@ namespace KubaPC.Services.Services.Logic
             OperatorScope.AddParameters(parameters, caller);
             parameters.Add("OperatorId", request.OperatorId, DbType.Guid);
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);
@@ -82,7 +82,7 @@ namespace KubaPC.Services.Services.Logic
                     BankBranchName = row.BankBranchName,
                     BankBranchCode = row.BankBranchCode,
                     BankAccountName = row.BankAccountName,
-                    BankAccountNumber = row.BankAccountNumber,
+                    BankAccountNumber = BankAccountMask.Apply(row.BankAccountNumber),
                     BankAccountType = row.BankAccountType
                 }).ToList()
             };
@@ -120,7 +120,7 @@ namespace KubaPC.Services.Services.Logic
                 BankBranchName = row.BankBranchName,
                 BankBranchCode = row.BankBranchCode,
                 BankAccountName = row.BankAccountName,
-                BankAccountNumber = row.BankAccountNumber,
+                BankAccountNumber = BankAccountMask.Apply(row.BankAccountNumber),
                 BankAccountType = row.BankAccountType
             };
         }
@@ -219,7 +219,7 @@ namespace KubaPC.Services.Services.Logic
                                      bank_branch_name = @BankBranchName,
                                      bank_branch_code = @BankBranchCode,
                                      bank_account_name = @BankAccountName,
-                                     bank_account_number = @BankAccountNumber,
+                                     bank_account_number = COALESCE(@BankAccountNumber, bank_account_number),
                                      bank_account_type = @BankAccountType,
                                      modified_at = now(),
                                      modified_by = @ModifiedBy

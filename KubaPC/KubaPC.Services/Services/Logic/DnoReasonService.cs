@@ -1,9 +1,10 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.DnoReasons.Requests;
 using KubaPC.Models.Contracts.DnoReasons.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -33,14 +34,14 @@ namespace KubaPC.Services.Services.Logic
                                    (SELECT count(*) FROM form_f1_records f WHERE f.dno_reason_id = r.id) AS use_count,
                                    count(*) OVER() AS total_count
                             FROM dno_reasons r
-                            WHERE (@Search IS NULL OR r.reason_value ILIKE @SearchPattern)
+                            WHERE (@Search IS NULL OR r.reason_value ILIKE @SearchPattern ESCAPE '\')
                               AND (@IsActive IS NULL OR r.is_active = @IsActive)
                             ORDER BY {sortColumn} {sortDirection}
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);

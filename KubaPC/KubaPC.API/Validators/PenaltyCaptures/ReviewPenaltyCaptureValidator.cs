@@ -1,4 +1,4 @@
-﻿using FastEndpoints;
+using FastEndpoints;
 using FluentValidation;
 using KubaPC.Models.Contracts.PenaltyCaptures.Requests;
 
@@ -9,7 +9,7 @@ namespace KubaPC.API.Validators.PenaltyCaptures
         public ReviewPenaltyCaptureValidator()
         {
             RuleFor(x => x.Id).NotEmpty();
-            RuleFor(x => x.CaptureStatus).NotEmpty().WithMessage("Choose a decision.");
+            RuleFor(x => x.CaptureStatus).NotEmpty().WithMessage("Choose a decision.").MaximumLength(50);
             RuleFor(x => x.StatusReason).MaximumLength(500);
             RuleFor(x => x.StatusReason)
                 .NotEmpty()

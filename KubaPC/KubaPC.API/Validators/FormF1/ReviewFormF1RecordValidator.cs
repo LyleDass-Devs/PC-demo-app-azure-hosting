@@ -9,7 +9,7 @@ namespace KubaPC.API.Validators.FormF1
         public ReviewFormF1RecordValidator()
         {
             RuleFor(x => x.Id).NotEmpty();
-            RuleFor(x => x.RecordStatus).NotEmpty().WithMessage("Choose a decision.");
+            RuleFor(x => x.RecordStatus).NotEmpty().WithMessage("Choose a decision.").MaximumLength(50);
             RuleFor(x => x.StatusReason).MaximumLength(500);
             RuleFor(x => x.StatusReason)
                 .NotEmpty()

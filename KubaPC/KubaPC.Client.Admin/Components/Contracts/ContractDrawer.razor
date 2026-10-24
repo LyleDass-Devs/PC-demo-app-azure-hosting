@@ -1,4 +1,4 @@
-﻿@inject IContractClientService ContractClient
+@inject IContractClientService ContractClient
 @inject INotificationService Notifications
 
 <MudDrawer @bind-Open="open" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="0" Width="min(520px, 100vw)" Class="kdrawer" ClipMode="DrawerClipMode.Never" OverlayAutoClose="true">
@@ -81,7 +81,8 @@
                 </div>
                 <div class="field">
                     <label for="bank-account-number">Account number</label>
-                    <input id="bank-account-number" class="kinput @Invalid("bankAccountNumber")" @bind="bankAccountNumber" autocomplete="off" inputmode="numeric" />
+                    <input id="bank-account-number" class="kinput @Invalid("bankAccountNumber")" @bind="bankAccountNumber" autocomplete="off" inputmode="numeric" placeholder="@(isEdit ? maskedAccountNumber : null)" />
+                    @if (isEdit && !string.IsNullOrEmpty(maskedAccountNumber)) { <span class="field__hint">Only the last four digits are ever shown. Leave blank to keep the current number.</span> }
                     @if (FieldError("bankAccountNumber") is string e10) { <span class="field__error">@e10</span> }
                 </div>
             </section>
@@ -103,7 +104,7 @@
     private bool open, isEdit, busy;
     private Guid editingId;
     private string contractNumber = string.Empty;
-    private string? contractName, bankName, bankBranchName, bankBranchCode, bankAccountName, bankAccountNumber, bankAccountType;
+    private string? contractName, bankName, bankBranchName, bankBranchCode, bankAccountName, bankAccountNumber, bankAccountType, maskedAccountNumber;
     private DateOnly? commencementDate, expiryDate;
     private Guid? chosenOperatorId;
     private string? error;
@@ -128,7 +129,7 @@
         commencementDate = item.CommencementDate;
         expiryDate = item.ExpiryDate;
         bankName = item.BankName; bankBranchName = item.BankBranchName; bankBranchCode = item.BankBranchCode;
-        bankAccountName = item.BankAccountName; bankAccountNumber = item.BankAccountNumber; bankAccountType = item.BankAccountType;
+        bankAccountName = item.BankAccountName; bankAccountNumber = null; maskedAccountNumber = item.BankAccountNumber; bankAccountType = item.BankAccountType;
         open = true;
         StateHasChanged();
     }

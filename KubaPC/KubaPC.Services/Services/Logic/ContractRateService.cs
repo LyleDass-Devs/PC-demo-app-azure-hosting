@@ -48,7 +48,7 @@ namespace KubaPC.Services.Services.Logic
                             WHERE (@ContractId IS NULL OR r.contract_id = @ContractId)
                               AND (@OperatorId IS NULL OR c.operator_id = @OperatorId)
                               AND (@VehicleType IS NULL OR r.vehicle_type = @VehicleType)
-                              AND (@Search IS NULL OR c.contract_number ILIKE @SearchPattern OR o.operator_name ILIKE @SearchPattern)
+                              AND (@Search IS NULL OR c.contract_number ILIKE @SearchPattern ESCAPE '\' OR o.operator_name ILIKE @SearchPattern ESCAPE '\')
                               AND (@IsActive IS NULL OR r.is_active = @IsActive)
                               {OperatorScope.ForOperatorColumn("c.operator_id")}
                             ORDER BY {sortColumn} {sortDirection}, r.vehicle_type, r.effective_from_date DESC
@@ -60,7 +60,7 @@ namespace KubaPC.Services.Services.Logic
             parameters.Add("OperatorId", request.OperatorId, DbType.Guid);
             parameters.Add("VehicleType", request.VehicleType, DbType.String);
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);
