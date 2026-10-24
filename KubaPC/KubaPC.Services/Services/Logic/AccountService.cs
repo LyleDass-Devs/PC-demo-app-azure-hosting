@@ -680,19 +680,13 @@ namespace KubaPC.Services.Services.Logic
 
         public async Task RecordFailedLogin(Guid accountId)
         {
-            const string sql = @"WITH current AS (
-                                   SELECT id, CASE WHEN locked_until IS NOT NULL AND locked_until <= now() THEN 0 ELSE failed_login_count END AS attempts_so_far
-                                   FROM accounts
-                                   WHERE id = @AccountId AND is_active AND (locked_until IS NULL OR locked_until <= now())
-                                 )
-                                 UPDATE accounts a
-                                 SET failed_login_count = current.attempts_so_far + 1,
-                                     locked_until = CASE WHEN current.attempts_so_far + 1 >= @Attempts
+            const string sql = @"UPDATE accounts
+                                 SET failed_login_count = CASE WHEN locked_until IS NOT NULL AND locked_until <= now() THEN 1 ELSE failed_login_count + 1 END,
+                                     locked_until = CASE WHEN (CASE WHEN locked_until IS NOT NULL AND locked_until <= now() THEN 1 ELSE failed_login_count + 1 END) >= @Attempts
                                                          THEN now() + make_interval(mins => @Minutes)
                                                          ELSE NULL END
-                                 FROM current
-                                 WHERE a.id = current.id
-                                 RETURNING a.failed_login_count";
+                                 WHERE id = @AccountId AND is_active AND (locked_until IS NULL OR locked_until <= now())
+                                 RETURNING failed_login_count";
 
             int failedCount = await _dataAccess.QuerySingleOrDefaultAsync<int>(sql, new
             {

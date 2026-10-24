@@ -190,6 +190,8 @@ namespace KubaPC.Services.Services.Logic
                 CreatedBy = createdBy
             });
 
+            await WriteAudit(id, "Create", createdBy);
+
             return CreateResult.Success(id);
         }
 
@@ -210,6 +212,20 @@ namespace KubaPC.Services.Services.Logic
                 return OperationResult.Failure($"An active contract already uses the number {contractNumber}.");
             }
 
+            bool hasBankDetails = new[] { request.BankName, request.BankBranchName, request.BankBranchCode, request.BankAccountName, request.BankAccountNumber, request.BankAccountType }
+                .Any(value => !string.IsNullOrWhiteSpace(value));
+
+            if (hasBankDetails && string.IsNullOrWhiteSpace(request.BankAccountNumber))
+            {
+                const string numberSql = @"SELECT bank_account_number FROM contracts WHERE id = @Id AND is_active";
+                string? storedNumber = await _dataAccess.QuerySingleOrDefaultAsync<string>(numberSql, new { request.Id });
+
+                if (string.IsNullOrWhiteSpace(storedNumber))
+                {
+                    return OperationResult.Failure("Enter the bank account number.");
+                }
+            }
+
             const string sql = @"UPDATE contracts
                                  SET contract_number = @ContractNumber,
                                      contract_name = @ContractName,
@@ -219,7 +235,7 @@ namespace KubaPC.Services.Services.Logic
                                      bank_branch_name = @BankBranchName,
                                      bank_branch_code = @BankBranchCode,
                                      bank_account_name = @BankAccountName,
-                                     bank_account_number = COALESCE(@BankAccountNumber, bank_account_number),
+                                     bank_account_number = CASE WHEN @HasBankDetails THEN COALESCE(@BankAccountNumber, bank_account_number) ELSE NULL END,
                                      bank_account_type = @BankAccountType,
                                      modified_at = now(),
                                      modified_by = @ModifiedBy
@@ -238,12 +254,30 @@ namespace KubaPC.Services.Services.Logic
                 BankAccountName = Clean(request.BankAccountName),
                 BankAccountNumber = Clean(request.BankAccountNumber),
                 BankAccountType = Clean(request.BankAccountType),
+                HasBankDetails = hasBankDetails,
                 ModifiedBy = modifiedBy
             });
 
-            return updatedCount == 0
-                ? OperationResult.Failure("No active contract was found with that id.")
-                : OperationResult.Success();
+            if (updatedCount == 0)
+            {
+                return OperationResult.Failure("No active contract was found with that id.");
+            }
+
+            await WriteAudit(request.Id, "Update", modifiedBy);
+
+            return OperationResult.Success();
+        }
+
+        private async Task WriteAudit(Guid contractId, string action, Guid actor)
+        {
+            const string sql = @"INSERT INTO audit_logs (table_name, record_id, action_name, changed_by, new_values)
+                                 SELECT 'contracts', @ContractId, @Action, @Actor,
+                                        to_jsonb(c) - 'bank_account_number'
+                                            || jsonb_build_object('bank_account_number_last_four', right(c.bank_account_number, 4))
+                                 FROM contracts c
+                                 WHERE c.id = @ContractId";
+
+            await _dataAccess.ExecuteAsync(sql, new { ContractId = contractId, Action = action, Actor = actor });
         }
 
         public async Task<OperationResult> DeactivateContract(Guid contractId, Caller caller)
