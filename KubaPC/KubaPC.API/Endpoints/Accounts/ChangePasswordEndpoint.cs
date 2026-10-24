@@ -1,4 +1,5 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Accounts.Requests;
 using KubaPC.Services.Services.Interfaces;
 using KubaPC.Services.Services.Logic;
@@ -19,6 +20,7 @@ namespace KubaPC.API.Endpoints.Accounts
         {
             Post("/accounts/change-password");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
+            Options(x => x.RequireRateLimiting(RateLimitPolicies.SENSITIVE));
         }
 
         public override async Task HandleAsync(ChangePasswordRequest request, CancellationToken ct)

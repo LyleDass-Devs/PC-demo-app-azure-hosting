@@ -1,6 +1,7 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using FastEndpoints;
+using KubaPC.API.Security;
 
 namespace KubaPC.API
 {
@@ -17,12 +18,14 @@ namespace KubaPC.API
             builder.BuildAPIAuthorization();
             builder.BuildDatabaseLogging();
             builder.BuildCors();
+            builder.BuildRateLimiting();
             builder.Services.AddFastEndpoints();
 
             WebApplication app = builder.Build();
 
             app.RunTimeEnvironment();
             app.UseCors(StartupExtensions.CLIENT_CORS_POLICY);
+            app.UseRateLimiter();
             app.UseAuthentication();
             app.UseAuthorization();
             app.UseMiddleware<KubaPC.API.Middleware.PasswordChangeMiddleware>();

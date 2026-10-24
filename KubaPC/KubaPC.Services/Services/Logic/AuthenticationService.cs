@@ -1,4 +1,4 @@
-﻿using KubaPC.Models.Contracts.Authentication.Requests;
+using KubaPC.Models.Contracts.Authentication.Requests;
 using KubaPC.Models.Contracts.Authentication.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Helpers;
@@ -26,13 +26,34 @@ namespace KubaPC.Services.Services.Logic
         {
             AccountCredentialsModel? account = await accountService.SelectActiveByEmail(request.EmailAddress);
 
-            if (account is null || !passwordHelper.Verify(request.Password, account.PasswordHash))
+            if (account is null)
             {
+                passwordHelper.VerifyAgainstDummy(request.Password);
+                return null;
+            }
+
+            bool isPasswordValid = passwordHelper.Verify(request.Password, account.PasswordHash);
+
+            if (account.LockedUntil is DateTime lockedUntil && lockedUntil > DateTime.UtcNow)
+            {
+                return null;
+            }
+
+            if (!isPasswordValid)
+            {
+                await accountService.RecordFailedLogin(account.Id);
+                return null;
+            }
+
+            if (account.MustChangePassword && account.TemporaryPasswordExpiresAt is DateTime expiresAt && expiresAt < DateTime.UtcNow)
+            {
+                await accountService.WriteSecurityEvent(account.Id, "TemporaryPasswordExpired", account.Id);
                 return null;
             }
 
             List<string> roles = await accountService.SelectRoleNames(account.Id);
 
+            await accountService.ClearFailedLogins(account.Id);
             await accountService.UpdateLastLogin(account.Id);
 
             TokenSourceDataModel tokenData = new TokenSourceDataModel()

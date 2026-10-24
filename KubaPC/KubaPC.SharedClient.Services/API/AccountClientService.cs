@@ -1,4 +1,4 @@
-﻿using KubaPC.Models.Contracts.Accounts.Requests;
+using KubaPC.Models.Contracts.Accounts.Requests;
 using KubaPC.Models.Contracts.Accounts.Responses;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.SharedClient.Services.Http;
@@ -66,9 +66,9 @@ namespace KubaPC.SharedClient.Services.Api
             return await httpService.Post("/accounts/change-password", request);
         }
 
-        public async Task<ApiResult> ResetPassword(ResetPasswordRequest request)
+        public async Task<ApiResult<ResetPasswordResponse>> ResetPassword(ResetPasswordRequest request)
         {
-            return await httpService.Post("/accounts/reset-password", request);
+            return await httpService.Post<ResetPasswordResponse>("/accounts/reset-password", request);
         }
     }
 }

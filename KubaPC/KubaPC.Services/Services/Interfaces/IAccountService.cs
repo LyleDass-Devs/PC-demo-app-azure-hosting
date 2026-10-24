@@ -24,7 +24,10 @@ namespace KubaPC.Services.Services.Interfaces
         Task<AccountOperationResult> UpdateOperators(UpdateAccountOperatorsRequest request, Caller caller);
         Task<AccountOperationResult> ReactivateAccount(Guid accountId, Caller caller);
         Task<AccountOperationResult> UpdateOwnName(Guid accountId, string fullName);
-        Task<AccountOperationResult> ResetPassword(Guid accountId, string temporaryPassword, Caller caller);
+        Task<ResetPasswordResult> ResetPassword(Guid accountId, Caller caller);
+        Task RecordFailedLogin(Guid accountId);
+        Task ClearFailedLogins(Guid accountId);
+        Task WriteSecurityEvent(Guid accountId, string eventName, Guid actor);
 
     }
 }

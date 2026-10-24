@@ -1,4 +1,5 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Authentication.Requests;
 using KubaPC.Models.Contracts.Authentication.Responses;
 using KubaPC.Services.Services.Interfaces;
@@ -19,6 +20,7 @@ namespace KubaPC.API.Endpoints.Authentication
         {
             Post("/authentication/authenticate");
             AllowAnonymous();
+            Options(x => x.RequireRateLimiting(RateLimitPolicies.AUTHENTICATION));
         }
 
         public override async Task HandleAsync(AuthenticationRequest request, CancellationToken ct)

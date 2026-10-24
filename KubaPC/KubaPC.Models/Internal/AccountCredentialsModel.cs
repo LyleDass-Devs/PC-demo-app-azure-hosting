@@ -8,5 +8,8 @@
         public string? PasswordHash { get; set; } = string.Empty;
         public bool MustChangePassword { get; set; }
         public int TokenVersion { get; set; }
+        public int FailedLoginCount { get; set; }
+        public DateTime? LockedUntil { get; set; }
+        public DateTime? TemporaryPasswordExpiresAt { get; set; }
     }
 }

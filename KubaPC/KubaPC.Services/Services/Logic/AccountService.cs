@@ -27,14 +27,17 @@ namespace KubaPC.Services.Services.Logic
             ["createdAt"] = "created_at"
         };
         private readonly IPasswordHelper passwordHelper;
-        public AccountService(INpgsqlDataAccess dataAccess, IPasswordHelper passwordHelper) : base(dataAccess)
+        private readonly AppSettingsModel settings;
+        public AccountService(INpgsqlDataAccess dataAccess, IPasswordHelper passwordHelper, AppSettingsModel settings) : base(dataAccess)
         {
             this.passwordHelper = passwordHelper;
+            this.settings = settings;
         }
 
         public async Task<AccountCredentialsModel?> SelectActiveByEmail(string emailAddress)
         {
-            const string sql = @"SELECT id, email_address, full_name, password_hash, must_change_password, token_version
+            const string sql = @"SELECT id, email_address, full_name, password_hash, must_change_password, token_version,
+                                        failed_login_count, locked_until, temporary_password_expires_at
                                  FROM accounts
                                  WHERE lower(email_address) = lower(@EmailAddress)
                                  AND is_active";
@@ -118,8 +121,10 @@ namespace KubaPC.Services.Services.Logic
             }
 
             const string sql = @"WITH new_account AS (
-                       INSERT INTO accounts (email_address, full_name, password_hash,  password_changed_at, must_change_password, created_by)
-                       VALUES (@EmailAddress, @FullName, @PasswordHash, now(), TRUE, @CreatedBy)
+                       INSERT INTO accounts (email_address, full_name, password_hash, password_changed_at, must_change_password,
+                                             temporary_password_expires_at, created_by)
+                       VALUES (@EmailAddress, @FullName, @PasswordHash, now(), TRUE,
+                               now() + make_interval(hours => @TemporaryPasswordHours), @CreatedBy)
                        RETURNING id
                      ),
                      new_roles AS (
@@ -135,6 +140,7 @@ namespace KubaPC.Services.Services.Logic
                 request.FullName,
                 PasswordHash = passwordHelper.Hash(request.Password),
                 request.RoleNames,
+                TemporaryPasswordHours = settings.TemporaryPasswordHours,
                 CreatedBy = createdBy
             });
 
@@ -158,6 +164,9 @@ namespace KubaPC.Services.Services.Logic
                                SET password_hash = @PasswordHash,
                                    password_changed_at = now(),
                                    must_change_password = FALSE,
+                                   temporary_password_expires_at = NULL,
+                                   failed_login_count = 0,
+                                   locked_until = NULL,
                                    token_version = token_version + 1,
                                    modified_at = now(),
                                    modified_by = @AccountId
@@ -168,6 +177,8 @@ namespace KubaPC.Services.Services.Logic
                 AccountId = accountId,
                 PasswordHash = passwordHelper.Hash(newPassword)
             });
+
+            await WriteSecurityEvent(accountId, "PasswordChanged", accountId);
 
             return true;
 
@@ -306,9 +317,17 @@ namespace KubaPC.Services.Services.Logic
 
             int updatedCount = await SaveAccountAndRoles(request, modifiedBy, areRolesChanging);
 
-            return updatedCount == 0
-                ? AccountOperationResult.Failure("No active account was found with that id.")
-                : AccountOperationResult.Success();
+            if (updatedCount == 0)
+            {
+                return AccountOperationResult.Failure("No active account was found with that id.");
+            }
+
+            if (areRolesChanging)
+            {
+                await WriteSecurityEvent(request.Id, "RolesChanged", modifiedBy);
+            }
+
+            return AccountOperationResult.Success();
         }
 
         private async Task<int> SaveAccountAndRoles(UpdateAccountRequest request, Guid modifiedBy, bool areRolesChanging)
@@ -465,9 +484,14 @@ namespace KubaPC.Services.Services.Logic
                 ModifiedBy = modifiedBy
             });
 
-            return accountCount == 0
-                ? AccountOperationResult.Failure("No active account was found with that id.")
-                : AccountOperationResult.Success();
+            if (accountCount == 0)
+            {
+                return AccountOperationResult.Failure("No active account was found with that id.");
+            }
+
+            await WriteSecurityEvent(request.AccountId, "OperatorGrantsChanged", modifiedBy);
+
+            return AccountOperationResult.Success();
         }
 
         public async Task<AccountOperationResult> DeactivateAccount(Guid accountId, Caller caller)
@@ -513,9 +537,14 @@ namespace KubaPC.Services.Services.Logic
                 ModifiedBy = modifiedBy
             });
 
-            return deactivatedCount == 0
-                ? AccountOperationResult.Failure("No active account was found with that id.")
-                : AccountOperationResult.Success();
+            if (deactivatedCount == 0)
+            {
+                return AccountOperationResult.Failure("No active account was found with that id.");
+            }
+
+            await WriteSecurityEvent(accountId, "AccountDeactivated", modifiedBy);
+
+            return AccountOperationResult.Success();
         }
 
         public async Task<AccountOperationResult> ReactivateAccount(Guid accountId, Caller caller)
@@ -571,9 +600,14 @@ namespace KubaPC.Services.Services.Logic
                 ModifiedBy = modifiedBy
             });
 
-            return reactivatedCount == 0
-                ? AccountOperationResult.Failure("No deactivated account was found with that id.")
-                : AccountOperationResult.Success();
+            if (reactivatedCount == 0)
+            {
+                return AccountOperationResult.Failure("No deactivated account was found with that id.");
+            }
+
+            await WriteSecurityEvent(accountId, "AccountReactivated", modifiedBy);
+
+            return AccountOperationResult.Success();
         }
 
         public async Task<AccountOperationResult> UpdateOwnName(Guid accountId, string fullName)
@@ -595,39 +629,90 @@ namespace KubaPC.Services.Services.Logic
                 : AccountOperationResult.Success();
         }
 
-        public async Task<AccountOperationResult> ResetPassword(Guid accountId, string temporaryPassword, Caller caller)
+        public async Task<ResetPasswordResult> ResetPassword(Guid accountId, Caller caller)
         {
             AccountOperationResult allowed = await CheckManage(caller, accountId);
 
             if (!allowed.IsSuccess)
             {
-                return allowed;
+                return ResetPasswordResult.From(allowed);
             }
 
             Guid modifiedBy = caller.AccountId;
 
             if (accountId == modifiedBy)
             {
-                return AccountOperationResult.Failure("Use Change password for your own account.");
+                return ResetPasswordResult.Failure("Use Change password for your own account.");
             }
+
+            string temporaryPassword = passwordHelper.GenerateTemporaryPassword();
 
             const string sql = @"UPDATE accounts
                          SET password_hash = @PasswordHash,
                              password_changed_at = now(),
                              must_change_password = TRUE,
+                             temporary_password_expires_at = now() + make_interval(hours => @TemporaryPasswordHours),
+                             failed_login_count = 0,
+                             locked_until = NULL,
                              token_version = token_version + 1,
                              modified_at = now(),
                              modified_by = @ModifiedBy
-                         WHERE id = @AccountId AND is_active";
+                         WHERE id = @AccountId AND is_active
+                         RETURNING temporary_password_expires_at";
 
-            int updatedCount = await _dataAccess.ExecuteAsync(sql, new
+            DateTime? expiresAt = await _dataAccess.QuerySingleOrDefaultAsync<DateTime?>(sql, new
             {
                 AccountId = accountId,
                 ModifiedBy = modifiedBy,
-                PasswordHash = passwordHelper.Hash(temporaryPassword)
+                PasswordHash = passwordHelper.Hash(temporaryPassword),
+                TemporaryPasswordHours = settings.TemporaryPasswordHours
             });
 
-            return updatedCount == 0 ? AccountOperationResult.Failure("No active account was found with that id.") : AccountOperationResult.Success();
+            if (expiresAt is null)
+            {
+                return ResetPasswordResult.Failure("No active account was found with that id.");
+            }
+
+            await WriteSecurityEvent(accountId, "PasswordReset", modifiedBy);
+
+            return ResetPasswordResult.Success(temporaryPassword, expiresAt.Value);
+        }
+
+        public async Task RecordFailedLogin(Guid accountId)
+        {
+            const string sql = @"UPDATE accounts
+                                 SET failed_login_count = failed_login_count + 1,
+                                     locked_until = CASE WHEN failed_login_count + 1 >= @Attempts
+                                                         THEN now() + make_interval(mins => @Minutes)
+                                                         ELSE locked_until END
+                                 WHERE id = @AccountId AND is_active
+                                 RETURNING failed_login_count";
+
+            int failedCount = await _dataAccess.QuerySingleOrDefaultAsync<int>(sql, new
+            {
+                AccountId = accountId,
+                Attempts = settings.LoginLockoutAttempts,
+                Minutes = settings.LoginLockoutMinutes
+            });
+
+            await WriteSecurityEvent(accountId, failedCount >= settings.LoginLockoutAttempts ? "AccountLocked" : "LoginFailed", accountId);
+        }
+
+        public async Task ClearFailedLogins(Guid accountId)
+        {
+            const string sql = @"UPDATE accounts
+                                 SET failed_login_count = 0, locked_until = NULL
+                                 WHERE id = @AccountId AND (failed_login_count > 0 OR locked_until IS NOT NULL)";
+
+            await _dataAccess.ExecuteAsync(sql, new { AccountId = accountId });
+        }
+
+        public async Task WriteSecurityEvent(Guid accountId, string eventName, Guid actor)
+        {
+            const string sql = @"INSERT INTO audit_logs (table_name, record_id, action_name, action_reason, changed_by)
+                                 VALUES ('accounts', @AccountId, 'Security', @EventName, @Actor)";
+
+            await _dataAccess.ExecuteAsync(sql, new { AccountId = accountId, EventName = eventName, Actor = actor });
         }
 
         private async Task<AccountOperationResult> CheckManage(Caller caller, Guid targetAccountId)

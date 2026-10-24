@@ -1,4 +1,4 @@
-﻿using KubaPC.Models.Contracts.Accounts.Requests;
+using KubaPC.Models.Contracts.Accounts.Requests;
 using KubaPC.Models.Contracts.Accounts.Responses;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.SharedClient.Services.Models;
@@ -17,6 +17,6 @@ namespace KubaPC.SharedClient.Services.Api
         Task<ApiResult<List<Guid>>> GetOperatorIds(Guid accountId);
         Task<ApiResult> UpdateOperators(UpdateAccountOperatorsRequest request);
         Task<ApiResult> ChangePassword(ChangePasswordRequest request);
-        Task<ApiResult> ResetPassword(ResetPasswordRequest request);
+        Task<ApiResult<ResetPasswordResponse>> ResetPassword(ResetPasswordRequest request);
     }
 }

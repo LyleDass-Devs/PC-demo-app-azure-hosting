@@ -1,6 +1,7 @@
 using FastEndpoints;
 using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Accounts.Requests;
+using KubaPC.Models.Contracts.Accounts.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -21,6 +22,7 @@ namespace KubaPC.API.Endpoints.Accounts
             Post("/accounts/reset-password");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
             Policies("Admin");
+            Options(x => x.RequireRateLimiting(RateLimitPolicies.SENSITIVE));
         }
 
         public override async Task HandleAsync(ResetPasswordRequest request, CancellationToken ct)
@@ -29,7 +31,7 @@ namespace KubaPC.API.Endpoints.Accounts
             {
                 Caller caller = CallerReader.Read(User);
 
-                AccountOperationResult result = await accountService.ResetPassword(request.Id, request.TemporaryPassword, caller);
+                ResetPasswordResult result = await accountService.ResetPassword(request.Id, caller);
 
                 if (!result.IsSuccess)
                 {
@@ -44,7 +46,11 @@ namespace KubaPC.API.Endpoints.Accounts
                     return;
                 }
 
-                await Send.OkAsync(new { message = "Password reset. The person must choose a new one at next sign-in." }, cancellation: ct);
+                await Send.OkAsync(new ResetPasswordResponse
+                {
+                    TemporaryPassword = result.TemporaryPassword!,
+                    ExpiresAt = result.ExpiresAt!.Value
+                }, cancellation: ct);
             }
             catch (Exception e)
             {

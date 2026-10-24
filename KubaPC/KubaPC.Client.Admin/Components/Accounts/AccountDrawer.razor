@@ -1,4 +1,4 @@
-﻿@inject IAccountClientService AccountClient
+@inject IAccountClientService AccountClient
 @inject IRoleClientService Roles
 @inject IOperatorClientService OperatorClient
 @inject INotificationService Notifications
@@ -77,20 +77,27 @@
         {
             <section class="drawer-section">
                 <h3>Password</h3>
-                @if (!isResetOpen)
+                @if (generatedPassword is not null)
                 {
-                    <p class="drawer-section__hint">Forgotten password? Set a temporary one; they choose their own at next sign-in.</p>
+                    <p class="drawer-section__hint">Temporary password for @fullName. Pass it on now; it is shown once and expires on @generatedExpiry.ToLocalTime().ToString("d MMMM yyyy 'at' HH:mm").</p>
+                    <input class="kinput" value="@generatedPassword" readonly aria-label="Temporary password" />
+                    <div class="drawer-section__actions">
+                        <KubaButton Text="Done" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="CloseReset" />
+                    </div>
+                }
+                else if (!isResetOpen)
+                {
+                    <p class="drawer-section__hint">Forgotten password? Generate a temporary one; they choose their own at next sign-in.</p>
                     <KubaButton Text="Reset password" Icon="@KubaIcons.Regular.Key" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="() => isResetOpen = true" />
                 }
                 else
                 {
                     <form @onsubmit="ResetPassword" @onsubmit:preventDefault novalidate>
                         <div class="status-line" role="alert" tabindex="-1" @ref="resetStatusLine">@resetError</div>
-                        <PasswordField @bind-Value="temporaryPassword" Label="Temporary password" Id="temp-password" AutoComplete="new-password" Error="@ResetFieldError()" />
-                        <PasswordStrengthLine Value="@temporaryPassword" />
+                        <p class="drawer-section__hint">This signs @fullName out everywhere and replaces their password with a generated one that lasts three days.</p>
                         <div class="drawer-section__actions">
                             <KubaButton Text="Cancel" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="CloseReset" Disabled="resetBusy" />
-                            <KubaButton Type="submit" Text="Reset password" Small="true" Icon="@KubaIcons.Regular.Key" Busy="resetBusy" />
+                            <KubaButton Type="submit" Text="Generate temporary password" Small="true" Icon="@KubaIcons.Regular.Key" Busy="resetBusy" />
                         </div>
                     </form>
                 }
@@ -120,7 +127,8 @@
     private ElementReference statusLine;
 
     private bool isTargetActive, isResetOpen, resetBusy;
-    private string temporaryPassword = string.Empty;
+    private string? generatedPassword;
+    private DateTime generatedExpiry;
     private string? resetError;
     private IReadOnlyDictionary<string, string[]> resetFieldErrors = new Dictionary<string, string[]>();
     private ElementReference resetStatusLine;
@@ -159,19 +167,17 @@
 
     private void CloseReset()
     {
-        isResetOpen = false; resetBusy = false; temporaryPassword = string.Empty;
+        isResetOpen = false; resetBusy = false; generatedPassword = null;
         resetError = null; resetFieldErrors = new Dictionary<string, string[]>();
     }
-
-    private string? ResetFieldError() => resetFieldErrors.TryGetValue("temporaryPassword", out string[]? messages) ? messages.FirstOrDefault() : null;
 
     private async Task ResetPassword()
     {
         resetError = null; resetFieldErrors = new Dictionary<string, string[]>(); resetBusy = true;
-        var result = await AccountClient.ResetPassword(new ResetPasswordRequest { Id = editingId, TemporaryPassword = temporaryPassword });
+        var result = await AccountClient.ResetPassword(new ResetPasswordRequest { Id = editingId });
         resetBusy = false;
 
-        if (!result.IsSuccess)
+        if (!result.IsSuccess || result.Data is null)
         {
             resetFieldErrors = result.ValidationErrors;
             resetError = result.HasValidationErrors ? null : result.ErrorMessage;
@@ -179,8 +185,10 @@
             return;
         }
 
-        CloseReset();
-        Notifications.Notify(NotificationLevel.Success, "Password reset", $"Give {fullName} the temporary password. They choose their own at next sign-in.");
+        isResetOpen = false;
+        generatedPassword = result.Data.TemporaryPassword;
+        generatedExpiry = result.Data.ExpiresAt;
+        Notifications.Notify(NotificationLevel.Success, "Password reset", $"{fullName} has been signed out and must use the temporary password next.");
     }
 
     private async Task EnsureRoles()
