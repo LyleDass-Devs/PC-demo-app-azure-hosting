@@ -26,7 +26,7 @@ namespace KubaPC.Services.Services.Interfaces
         Task<AccountOperationResult> UpdateOwnName(Guid accountId, string fullName);
         Task<ResetPasswordResult> ResetPassword(Guid accountId, Caller caller);
         Task RecordFailedLogin(Guid accountId);
-        Task ClearFailedLogins(Guid accountId);
+        Task<bool> ClearFailedLogins(Guid accountId);
         Task WriteSecurityEvent(Guid accountId, string eventName, Guid actor);
 
     }

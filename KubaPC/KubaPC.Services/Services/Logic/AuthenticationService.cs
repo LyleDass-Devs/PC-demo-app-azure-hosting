@@ -45,15 +45,19 @@ namespace KubaPC.Services.Services.Logic
                 return null;
             }
 
-            if (account.MustChangePassword && account.TemporaryPasswordExpiresAt is DateTime expiresAt && expiresAt < DateTime.UtcNow)
+            if (account.MustChangePassword && (account.TemporaryPasswordExpiresAt is null || account.TemporaryPasswordExpiresAt < DateTime.UtcNow))
             {
                 await accountService.WriteSecurityEvent(account.Id, "TemporaryPasswordExpired", account.Id);
                 return null;
             }
 
+            if (!await accountService.ClearFailedLogins(account.Id))
+            {
+                return null;
+            }
+
             List<string> roles = await accountService.SelectRoleNames(account.Id);
 
-            await accountService.ClearFailedLogins(account.Id);
             await accountService.UpdateLastLogin(account.Id);
 
             TokenSourceDataModel tokenData = new TokenSourceDataModel()

@@ -199,7 +199,7 @@ namespace KubaPC.Services.Services.Logic
                                     WHERE ao.account_id = a.id AND ao.is_active) AS operator_names,
                                    count(*) OVER() AS total_count
                             FROM accounts a
-                            WHERE (@Search IS NULL OR a.full_name ILIKE @SearchPattern OR a.email_address ILIKE @SearchPattern)
+                            WHERE (@Search IS NULL OR a.full_name ILIKE @SearchPattern ESCAPE '\' OR a.email_address ILIKE @SearchPattern ESCAPE '\')
                               AND (@IsActive IS NULL OR a.is_active = @IsActive)
                               AND (@IsUnscoped OR (NOT EXISTS (SELECT 1 FROM account_roles sar
                                                                 JOIN roles sr ON sr.id = sar.role_id
@@ -219,7 +219,7 @@ namespace KubaPC.Services.Services.Logic
             OperatorScope.AddParameters(parameters, caller);
             parameters.Add("SuperAdminRole", SUPER_ADMIN_ROLE, DbType.String);
             parameters.Add("Search", request.Search, DbType.String);
-            parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
+            parameters.Add("SearchPattern", SearchPattern.Build(request.Search), DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
             parameters.Add("PageSize", request.PageSize, DbType.Int32);
             parameters.Add("Offset", (request.Page - 1) * request.PageSize, DbType.Int32);
@@ -680,13 +680,19 @@ namespace KubaPC.Services.Services.Logic
 
         public async Task RecordFailedLogin(Guid accountId)
         {
-            const string sql = @"UPDATE accounts
-                                 SET failed_login_count = failed_login_count + 1,
-                                     locked_until = CASE WHEN failed_login_count + 1 >= @Attempts
+            const string sql = @"WITH current AS (
+                                   SELECT id, CASE WHEN locked_until IS NOT NULL AND locked_until <= now() THEN 0 ELSE failed_login_count END AS attempts_so_far
+                                   FROM accounts
+                                   WHERE id = @AccountId AND is_active AND (locked_until IS NULL OR locked_until <= now())
+                                 )
+                                 UPDATE accounts a
+                                 SET failed_login_count = current.attempts_so_far + 1,
+                                     locked_until = CASE WHEN current.attempts_so_far + 1 >= @Attempts
                                                          THEN now() + make_interval(mins => @Minutes)
-                                                         ELSE locked_until END
-                                 WHERE id = @AccountId AND is_active
-                                 RETURNING failed_login_count";
+                                                         ELSE NULL END
+                                 FROM current
+                                 WHERE a.id = current.id
+                                 RETURNING a.failed_login_count";
 
             int failedCount = await _dataAccess.QuerySingleOrDefaultAsync<int>(sql, new
             {
@@ -698,13 +704,16 @@ namespace KubaPC.Services.Services.Logic
             await WriteSecurityEvent(accountId, failedCount >= settings.LoginLockoutAttempts ? "AccountLocked" : "LoginFailed", accountId);
         }
 
-        public async Task ClearFailedLogins(Guid accountId)
+        public async Task<bool> ClearFailedLogins(Guid accountId)
         {
             const string sql = @"UPDATE accounts
                                  SET failed_login_count = 0, locked_until = NULL
-                                 WHERE id = @AccountId AND (failed_login_count > 0 OR locked_until IS NOT NULL)";
+                                 WHERE id = @AccountId AND is_active AND (locked_until IS NULL OR locked_until <= now())
+                                 RETURNING id";
 
-            await _dataAccess.ExecuteAsync(sql, new { AccountId = accountId });
+            Guid? clearedId = await _dataAccess.QuerySingleOrDefaultAsync<Guid?>(sql, new { AccountId = accountId });
+
+            return clearedId is not null;
         }
 
         public async Task WriteSecurityEvent(Guid accountId, string eventName, Guid actor)
