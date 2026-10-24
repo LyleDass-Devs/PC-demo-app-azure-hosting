@@ -77,3 +77,7 @@ Desktop.ini
 .impeccable/
 .playwright-mcp/
 docs/superpowers/
+
+# Azure platform documents are part of this repository
+!azure/docs/*.md
+!azure/docs/*.docx

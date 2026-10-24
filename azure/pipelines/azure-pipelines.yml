@@ -1,0 +1,230 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  - group: kubapc-dev-secrets
+  - name: azureServiceConnection
+    value: sc-kubapc-dev
+  - name: resourceGroup
+    value: rg-kubapc-dev
+  - name: location
+    value: southafricanorth
+  - name: agentPool
+    value: wsl-agents
+  - name: appSolution
+    value: KubaPC/KubaPC.slnx
+  - name: apiProject
+    value: KubaPC/KubaPC.API/KubaPC.API.csproj
+  - name: adminProject
+    value: KubaPC/KubaPC.Client.Admin/KubaPC.Client.Admin.csproj
+  - name: testProject
+    value: KubaPC/KubaPC.Services.Tests/KubaPC.Services.Tests.csproj
+  - name: sqlScripts
+    value: KubaPC/KubaPC.Database/Scripts
+
+stages:
+  - stage: Validate
+    displayName: Validate infrastructure
+    jobs:
+      - job: Lint
+        displayName: Compile, lint and preview the Bicep
+        pool:
+          name: $(agentPool)
+        steps:
+          - checkout: self
+          - script: |
+              set -euo pipefail
+              az bicep build --file azure/infra/main.bicep --stdout > /dev/null
+              az bicep lint --file azure/infra/main.bicep
+              echo "Bicep compiles and lints clean."
+            displayName: Compile and lint
+          - task: AzureCLI@2
+            displayName: What-if against the resource group
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                export POSTGRES_ADMIN_PASSWORD='$(POSTGRES_ADMIN_PASSWORD)'
+                export APP_DB_PASSWORD='$(APP_DB_PASSWORD)'
+                export JWT_SECRET='$(JWT_SECRET)'
+                az deployment group what-if \
+                  --resource-group $(resourceGroup) \
+                  --template-file azure/infra/main.bicep \
+                  --parameters azure/infra/dev.bicepparam \
+                  --result-format FullResourcePayloads
+
+  - stage: Build
+    displayName: Build and test the application
+    dependsOn: Validate
+    jobs:
+      - job: BuildApp
+        displayName: Restore, build, test and publish
+        pool:
+          name: $(agentPool)
+        steps:
+          - checkout: self
+          - script: dotnet restore $(appSolution)
+            displayName: Restore packages
+          - script: dotnet build $(appSolution) --configuration Release --no-restore
+            displayName: Build
+          - script: dotnet test $(testProject) --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory $(Build.ArtifactStagingDirectory)/tests
+            displayName: Unit tests
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: always()
+            inputs:
+              testResultsFormat: VSTest
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)/tests/*.trx'
+          - script: |
+              set -euo pipefail
+              dotnet publish $(apiProject) --configuration Release --no-build --output $(Build.ArtifactStagingDirectory)/api
+              cd $(Build.ArtifactStagingDirectory)/api
+              zip -qr ../api.zip .
+            displayName: Publish the API
+          - script: |
+              set -euo pipefail
+              dotnet publish $(adminProject) --configuration Release --no-build --output $(Build.ArtifactStagingDirectory)/admin
+              cp azure/web/staticwebapp.config.json $(Build.ArtifactStagingDirectory)/admin/wwwroot/
+            displayName: Publish the Admin client
+          - script: |
+              set -euo pipefail
+              mkdir -p $(Build.ArtifactStagingDirectory)/sql
+              cp $(sqlScripts)/*.sql $(Build.ArtifactStagingDirectory)/sql/
+            displayName: Collect database scripts
+          - publish: $(Build.ArtifactStagingDirectory)/api.zip
+            artifact: api
+          - publish: $(Build.ArtifactStagingDirectory)/admin/wwwroot
+            artifact: admin
+          - publish: $(Build.ArtifactStagingDirectory)/sql
+            artifact: sql
+
+  - stage: DeployInfrastructure
+    displayName: Deploy infrastructure
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: Infrastructure
+        displayName: Bicep deployment
+        pool:
+          name: $(agentPool)
+        environment: kubapc-dev-infrastructure
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: Deploy with Bicep
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      export POSTGRES_ADMIN_PASSWORD='$(POSTGRES_ADMIN_PASSWORD)'
+                      export APP_DB_PASSWORD='$(APP_DB_PASSWORD)'
+                      export JWT_SECRET='$(JWT_SECRET)'
+                      az deployment group create \
+                        --name "kubapc-$(Build.BuildId)" \
+                        --resource-group $(resourceGroup) \
+                        --template-file azure/infra/main.bicep \
+                        --parameters azure/infra/dev.bicepparam \
+                        --output table
+
+  - stage: MigrateDatabase
+    displayName: Apply database scripts
+    dependsOn: DeployInfrastructure
+    jobs:
+      - deployment: Migrate
+        displayName: Run the SQL scripts
+        pool:
+          name: $(agentPool)
+        environment: kubapc-dev-database
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - download: current
+                  artifact: sql
+                - task: AzureCLI@2
+                  displayName: Open the break-glass window, migrate, close it
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: scriptPath
+                    scriptPath: azure/scripts/migrate.sh
+                    arguments: $(resourceGroup) $(Pipeline.Workspace)/sql
+                  env:
+                    POSTGRES_ADMIN_PASSWORD: $(POSTGRES_ADMIN_PASSWORD)
+                    APP_DB_PASSWORD: $(APP_DB_PASSWORD)
+
+  - stage: DeployApplication
+    displayName: Deploy the API and the web client
+    dependsOn: MigrateDatabase
+    jobs:
+      - deployment: Api
+        displayName: API to App Service
+        pool:
+          name: $(agentPool)
+        environment: kubapc-dev-application
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - download: current
+                  artifact: api
+                - task: AzureCLI@2
+                  displayName: Read deployment outputs
+                  name: outputs
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      apiName=$(az deployment group show --resource-group $(resourceGroup) --name "kubapc-$(Build.BuildId)" --query properties.outputs.apiName.value --output tsv)
+                      apiUrl=$(az deployment group show --resource-group $(resourceGroup) --name "kubapc-$(Build.BuildId)" --query properties.outputs.apiUrl.value --output tsv)
+                      echo "##vso[task.setvariable variable=apiName;isOutput=true]$apiName"
+                      echo "##vso[task.setvariable variable=apiUrl;isOutput=true]$apiUrl"
+                - task: AzureWebApp@1
+                  displayName: Deploy the zip
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    appType: webAppLinux
+                    appName: $(outputs.apiName)
+                    package: $(Pipeline.Workspace)/api/api.zip
+                    runtimeStack: DOTNETCORE|10.0
+                - script: bash azure/scripts/smoke.sh "$(outputs.apiUrl)"
+                  displayName: Smoke test the API
+      - deployment: Web
+        displayName: Admin client to Static Web Apps
+        dependsOn: Api
+        pool:
+          name: $(agentPool)
+        environment: kubapc-dev-application
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - download: current
+                  artifact: admin
+                - task: AzureCLI@2
+                  displayName: Point the client at the API and upload
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: scriptPath
+                    scriptPath: azure/scripts/deploy-web.sh
+                    arguments: $(resourceGroup) "kubapc-$(Build.BuildId)" $(Pipeline.Workspace)/admin
