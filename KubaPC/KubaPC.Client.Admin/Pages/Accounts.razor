@@ -1,4 +1,4 @@
-﻿@page "/accounts"
+@page "/accounts"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject IAccountClientService AccountClient
 @inject ICurrentUserService CurrentUser
@@ -198,14 +198,15 @@
     {
         var result = await AccountClient.Reactivate(item.Id);
 
-        if (!result.IsSuccess)
+        if (!result.IsSuccess || result.Data is null)
         {
             Notifications.Notify(NotificationLevel.Error, "Could not reactivate", result.ErrorMessage);
             return;
         }
 
-        Notifications.Notify(NotificationLevel.Success, $"{item.FullName} reactivated", null, new NotificationAction("View active", () => SetActive(true)));
+        Notifications.Notify(NotificationLevel.Success, $"{item.FullName} reactivated", "Pass on the temporary password shown in the drawer.", new NotificationAction("View active", () => SetActive(true)));
         await Reload();
+        drawer?.ShowTemporaryPassword(item.Id, item.EmailAddress, result.Data.TemporaryPassword, result.Data.ExpiresAt);
     }
 
     private string RowClass(AccountListResponse item, int index) => item.Id == highlightId ? "row--highlight" : string.Empty;

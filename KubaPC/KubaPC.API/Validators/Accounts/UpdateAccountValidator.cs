@@ -10,7 +10,7 @@ namespace KubaPC.API.Validators.Accounts
         {
             RuleFor(x => x.Id).NotEmpty();
             RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
-            RuleFor(x => x.RoleNames).NotEmpty().WithMessage("An account must keep at least one role.");
+            RuleFor(x => x.RoleNames).NotEmpty().WithMessage("An account must keep at least one role.").Must(roles => roles.Count <= 20).WithMessage("Too many roles.");
             RuleForEach(x => x.RoleNames).NotEmpty().MaximumLength(50);
         }
 

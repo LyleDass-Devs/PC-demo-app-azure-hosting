@@ -1,6 +1,7 @@
 using FastEndpoints;
 using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Accounts.Requests;
+using KubaPC.Models.Contracts.Accounts.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -29,7 +30,7 @@ namespace KubaPC.API.Endpoints.Accounts
             {
                 Caller caller = CallerReader.Read(User);
 
-                AccountOperationResult result = await accountService.ReactivateAccount(request.Id, caller);
+                ResetPasswordResult result = await accountService.ReactivateAccount(request.Id, caller);
 
                 if (!result.IsSuccess)
                 {
@@ -44,7 +45,11 @@ namespace KubaPC.API.Endpoints.Accounts
                     return;
                 }
 
-                await Send.OkAsync(new { message = "Account reactivated." }, cancellation: ct);
+                await Send.OkAsync(new ResetPasswordResponse
+                {
+                    TemporaryPassword = result.TemporaryPassword!,
+                    ExpiresAt = result.ExpiresAt!.Value
+                }, cancellation: ct);
             }
             catch (Exception exception)
             {

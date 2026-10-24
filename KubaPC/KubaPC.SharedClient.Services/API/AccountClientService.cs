@@ -26,9 +26,9 @@ namespace KubaPC.SharedClient.Services.Api
             return await httpService.Get<PagedResponse<AccountListResponse>>($"/accounts?{PagedQuery.From(request)}");
         }
 
-        public async Task<ApiResult<Guid>> Create(CreateAccountRequest request)
+        public async Task<ApiResult<CreateAccountResponse>> Create(CreateAccountRequest request)
         {
-            return await httpService.Post<Guid>("/accounts/create", request);
+            return await httpService.Post<CreateAccountResponse>("/accounts/create", request);
         }
 
         public async Task<ApiResult> Update(UpdateAccountRequest request)
@@ -41,9 +41,9 @@ namespace KubaPC.SharedClient.Services.Api
             return await httpService.Post("/accounts/deactivate", new DeactivateAccountRequest { Id = accountId });
         }
 
-        public async Task<ApiResult> Reactivate(Guid accountId)
+        public async Task<ApiResult<ResetPasswordResponse>> Reactivate(Guid accountId)
         {
-            return await httpService.Post("/accounts/reactivate", new ReactivateAccountRequest { Id = accountId });
+            return await httpService.Post<ResetPasswordResponse>("/accounts/reactivate", new ReactivateAccountRequest { Id = accountId });
         }
 
         public async Task<ApiResult<List<Guid>>> GetOperatorIds(Guid accountId)

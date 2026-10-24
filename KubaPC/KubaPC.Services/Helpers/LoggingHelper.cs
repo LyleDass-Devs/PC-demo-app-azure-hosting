@@ -1,4 +1,4 @@
-﻿using KubaPC.Models.Internal;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
 using KubaPC.Services.Services;
 
@@ -9,23 +9,6 @@ namespace KubaPC.Services.Helpers
     {
         public LoggingHelper(INpgsqlDataAccess dataAccess) : base(dataAccess)
         {
-        }
-
-        public Task LogAsync(Exception exception, string requestPath = "")
-        {
-            ErrorLogModel entry = new()
-            {
-                LogLevel = "Error",
-                EventName = exception.TargetSite?.DeclaringType?.FullName,
-                Message = exception.Message,
-                ExceptionMessage = exception.Message,
-                InnerExceptionMessage = exception.InnerException?.Message,
-                ExceptionStackTrace = exception.StackTrace,
-                ExceptionSource = exception.Source,
-                RequestPath = requestPath
-            };
-
-            return LogAsync(entry);
         }
 
         public async Task LogAsync(ErrorLogModel entry)

@@ -22,6 +22,7 @@ namespace KubaPC.API
             builder.BuildAPIAuthorization();
             builder.BuildDatabaseLogging();
             builder.BuildCors();
+            builder.BuildReverseProxy();
             builder.BuildRateLimiting();
             builder.Services.AddHealthChecks();
             builder.Services.AddFastEndpoints();

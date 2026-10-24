@@ -315,7 +315,7 @@ namespace KubaPC.Services.Services.Logic
                                         r.route_number, r.direction
                                  FROM trips t
                                  JOIN routes r ON r.id = t.route_id
-                                 LEFT JOIN payment_certificates pc ON pc.id = @PaymentCertificateId AND pc.is_active
+                                 LEFT JOIN payment_certificates pc ON pc.id = @PaymentCertificateId AND pc.contract_id = r.contract_id AND pc.is_active
                                  WHERE t.route_id = @RouteId AND t.is_active
                                    AND (@TripDate IS NULL OR t.scheduled_date = @TripDate)
                                    AND (pc.id IS NULL OR (t.scheduled_date >= pc.certificate_period

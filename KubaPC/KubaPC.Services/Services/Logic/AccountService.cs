@@ -134,17 +134,21 @@ namespace KubaPC.Services.Services.Logic
                        JOIN roles r ON r.role_name = ANY(@RoleNames) AND r.is_active)
                      SELECT id FROM new_account";
 
+            string temporaryPassword = passwordHelper.GenerateTemporaryPassword();
+
             Guid id = await _dataAccess.QuerySingleOrDefaultAsync<Guid>(sql, new
             {
                 request.EmailAddress,
                 request.FullName,
-                PasswordHash = passwordHelper.Hash(request.Password),
+                PasswordHash = passwordHelper.Hash(temporaryPassword),
                 request.RoleNames,
                 TemporaryPasswordHours = settings.TemporaryPasswordHours,
                 CreatedBy = createdBy
             });
 
-            return new CreateAccountResult(id, null);
+            await WriteSecurityEvent(id, "AccountCreated", createdBy);
+
+            return CreateAccountResult.Success(id, temporaryPassword, DateTime.UtcNow.AddHours(settings.TemporaryPasswordHours));
         }
 
         public async Task<bool> ChangePassword(Guid accountId, string oldPassword, string newPassword)
@@ -209,7 +213,8 @@ namespace KubaPC.Services.Services.Logic
                                                                      AND NOT EXISTS (SELECT 1 FROM account_operators mine
                                                                                      WHERE mine.account_id = @Actor AND mine.is_active
                                                                                        AND mine.operator_id = held.operator_id))
-                                                   AND (a.created_by = @Actor
+                                                   AND ((a.created_by = @Actor
+                                                         AND NOT EXISTS (SELECT 1 FROM account_operators ever WHERE ever.account_id = a.id))
                                                         OR EXISTS (SELECT 1 FROM account_operators held
                                                                    WHERE held.account_id = a.id AND held.is_active))))
                             ORDER BY {sortColumn} {sortDirection}
@@ -347,6 +352,7 @@ namespace KubaPC.Services.Services.Logic
                            UPDATE account_roles
                            SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy
                            WHERE account_id = @AccountId
+                             AND EXISTS (SELECT 1 FROM updated_account)
                              AND is_active
                              AND role_id NOT IN (SELECT id FROM target_roles)
                            RETURNING id
@@ -355,6 +361,7 @@ namespace KubaPC.Services.Services.Logic
                            UPDATE account_roles
                            SET is_active = TRUE, modified_at = now(), modified_by = @ModifiedBy
                            WHERE account_id = @AccountId
+                             AND EXISTS (SELECT 1 FROM updated_account)
                              AND NOT is_active
                              AND role_id IN (SELECT id FROM target_roles)
                            RETURNING id
@@ -383,16 +390,16 @@ namespace KubaPC.Services.Services.Logic
             return (int)updatedCount;
         }
 
-        public async Task<List<Guid>> SelectOperatorIds(Guid accountId, Caller caller)
+        public async Task<LookupResult<List<Guid>>> SelectOperatorIds(Guid accountId, Caller caller)
         {
             AccountOperationResult allowed = await CheckManage(caller, accountId);
 
             if (!allowed.IsSuccess)
             {
-                return new List<Guid>();
+                return new LookupResult<List<Guid>>(false, null, allowed.Error, allowed.IsForbidden);
             }
 
-            return await SelectGrantedOperatorIds(accountId);
+            return LookupResult<List<Guid>>.Success(await SelectGrantedOperatorIds(accountId));
         }
 
         private async Task<List<Guid>> SelectGrantedOperatorIds(Guid accountId)
@@ -457,13 +464,15 @@ namespace KubaPC.Services.Services.Logic
                                  removed AS (
                                    UPDATE account_operators
                                    SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy
-                                   WHERE account_id = @AccountId AND is_active AND operator_id <> ALL(@OperatorIds)
+                                   WHERE account_id = @AccountId AND EXISTS (SELECT 1 FROM target_account)
+                                     AND is_active AND operator_id <> ALL(@OperatorIds)
                                    RETURNING id
                                  ),
                                  restored AS (
                                    UPDATE account_operators
                                    SET is_active = TRUE, modified_at = now(), modified_by = @ModifiedBy
-                                   WHERE account_id = @AccountId AND NOT is_active AND operator_id = ANY(@OperatorIds)
+                                   WHERE account_id = @AccountId AND EXISTS (SELECT 1 FROM target_account)
+                                     AND NOT is_active AND operator_id = ANY(@OperatorIds)
                                    RETURNING id
                                  ),
                                  added AS (
@@ -547,13 +556,13 @@ namespace KubaPC.Services.Services.Logic
             return AccountOperationResult.Success();
         }
 
-        public async Task<AccountOperationResult> ReactivateAccount(Guid accountId, Caller caller)
+        public async Task<ResetPasswordResult> ReactivateAccount(Guid accountId, Caller caller)
         {
             AccountOperationResult allowed = await CheckManage(caller, accountId);
 
             if (!allowed.IsSuccess)
             {
-                return allowed;
+                return ResetPasswordResult.From(allowed);
             }
 
             Guid modifiedBy = caller.AccountId;
@@ -568,8 +577,10 @@ namespace KubaPC.Services.Services.Logic
 
             if (conflictCount > 0)
             {
-                return AccountOperationResult.Failure("An active account already exists with that email address.");
+                return ResetPasswordResult.Failure("An active account already exists with that email address.");
             }
+
+            string temporaryPassword = passwordHelper.GenerateTemporaryPassword();
 
             const string sql = @"WITH target AS (
                                    SELECT id, modified_at AS deactivated_at
@@ -587,27 +598,37 @@ namespace KubaPC.Services.Services.Logic
                                  ),
                                  reactivated_account AS (
                                    UPDATE accounts a
-                                   SET is_active = TRUE, modified_at = now(), modified_by = @ModifiedBy
+                                   SET is_active = TRUE,
+                                       password_hash = @PasswordHash,
+                                       password_changed_at = now(),
+                                       must_change_password = TRUE,
+                                       temporary_password_expires_at = now() + make_interval(hours => @TemporaryPasswordHours),
+                                       failed_login_count = 0,
+                                       locked_until = NULL,
+                                       token_version = token_version + 1,
+                                       modified_at = now(), modified_by = @ModifiedBy
                                    FROM target
                                    WHERE a.id = target.id
-                                   RETURNING a.id
+                                   RETURNING a.temporary_password_expires_at
                                  )
-                                 SELECT count(*) FROM reactivated_account";
+                                 SELECT temporary_password_expires_at FROM reactivated_account";
 
-            long reactivatedCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(sql, new
+            DateTime? expiresAt = await _dataAccess.QuerySingleOrDefaultAsync<DateTime?>(sql, new
             {
                 AccountId = accountId,
-                ModifiedBy = modifiedBy
+                ModifiedBy = modifiedBy,
+                PasswordHash = passwordHelper.Hash(temporaryPassword),
+                TemporaryPasswordHours = settings.TemporaryPasswordHours
             });
 
-            if (reactivatedCount == 0)
+            if (expiresAt is null)
             {
-                return AccountOperationResult.Failure("No deactivated account was found with that id.");
+                return ResetPasswordResult.Failure("No deactivated account was found with that id.");
             }
 
             await WriteSecurityEvent(accountId, "AccountReactivated", modifiedBy);
 
-            return AccountOperationResult.Success();
+            return ResetPasswordResult.Success(temporaryPassword, expiresAt.Value);
         }
 
         public async Task<AccountOperationResult> UpdateOwnName(Guid accountId, string fullName)
@@ -760,7 +781,8 @@ namespace KubaPC.Services.Services.Logic
                                         AND (EXISTS (SELECT 1 FROM account_operators held
                                                      WHERE held.account_id = @TargetAccountId AND held.is_active)
                                              OR EXISTS (SELECT 1 FROM accounts a
-                                                        WHERE a.id = @TargetAccountId AND a.created_by = @CallerAccountId))";
+                                                        WHERE a.id = @TargetAccountId AND a.created_by = @CallerAccountId
+                                                          AND NOT EXISTS (SELECT 1 FROM account_operators ever WHERE ever.account_id = a.id)))";
 
             return await _dataAccess.QuerySingleOrDefaultAsync<bool>(sql, new { CallerAccountId = callerAccountId, TargetAccountId = targetAccountId });
         }

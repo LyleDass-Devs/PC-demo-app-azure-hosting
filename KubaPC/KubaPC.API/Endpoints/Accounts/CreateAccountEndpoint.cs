@@ -1,6 +1,7 @@
 using FastEndpoints;
 using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Accounts.Requests;
+using KubaPC.Models.Contracts.Accounts.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using KubaPC.Services.Services.Logic;
@@ -9,7 +10,7 @@ using System.Net;
 
 namespace KubaPC.API.Endpoints.Accounts
 {
-    public class CreateAccountEndpoint : Endpoint<CreateAccountRequest, Guid>
+    public class CreateAccountEndpoint : Endpoint<CreateAccountRequest, CreateAccountResponse>
     {
         private readonly IAccountService accountService;
 
@@ -46,7 +47,12 @@ namespace KubaPC.API.Endpoints.Accounts
                     return;
                 }
 
-                await Send.ResponseAsync(result.Id!.Value, (int)HttpStatusCode.Created, cancellation: ct);
+                await Send.ResponseAsync(new CreateAccountResponse
+                {
+                    Id = result.Id!.Value,
+                    TemporaryPassword = result.TemporaryPassword!,
+                    ExpiresAt = result.ExpiresAt!.Value
+                }, (int)HttpStatusCode.Created, cancellation: ct);
 
             }
             catch (Exception e)

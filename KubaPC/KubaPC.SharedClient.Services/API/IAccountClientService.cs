@@ -9,10 +9,10 @@ namespace KubaPC.SharedClient.Services.Api
     {
         Task<ApiResult<CurrentUserResponse>> GetCurrent();
         Task<ApiResult<PagedResponse<AccountListResponse>>> GetPaged(AccountListRequest request);
-        Task<ApiResult<Guid>> Create(CreateAccountRequest request);
+        Task<ApiResult<CreateAccountResponse>> Create(CreateAccountRequest request);
         Task<ApiResult> Update(UpdateAccountRequest request);
         Task<ApiResult> Deactivate(Guid accountId);
-        Task<ApiResult> Reactivate(Guid accountId);
+        Task<ApiResult<ResetPasswordResponse>> Reactivate(Guid accountId);
         Task<ApiResult> UpdateOwn(UpdateOwnAccountRequest request);
         Task<ApiResult<List<Guid>>> GetOperatorIds(Guid accountId);
         Task<ApiResult> UpdateOperators(UpdateAccountOperatorsRequest request);

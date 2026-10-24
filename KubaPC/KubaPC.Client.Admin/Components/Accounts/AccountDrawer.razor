@@ -9,7 +9,7 @@
             <h2>@(isEdit ? "Edit account" : "New account")</h2>
             <button class="iconbtn kdrawer__close" type="button" aria-label="Close" @onclick="Close" disabled="@busy"><MudIcon Icon="@KubaIcons.Regular.X" /></button>
         </div>
-        <p class="lede">@(isEdit ? editingEmail : "The person receives this password from you and must replace it at first sign-in.")</p>
+        <p class="lede">@(isEdit ? editingEmail : "A temporary password is generated when you save. Pass it on; they replace it at first sign-in.")</p>
 
         <div class="status-line" role="alert" tabindex="-1" @ref="statusLine">@error</div>
 
@@ -33,9 +33,6 @@
                         <span class="field__error">@ee</span>
                     }
                 </div>
-                <PasswordField @bind-Value="password" Label="Temporary password" Id="temp-password" AutoComplete="new-password" Error="@FieldError("password")" />
-                <PasswordStrengthLine Value="@password" />
-                <div style="height:14px"></div>
             }
 
             <div class="field">
@@ -111,7 +108,7 @@
 
     private bool open, isEdit, isSelf, busy;
     private Guid editingId;
-    private string editingEmail = string.Empty, fullName = string.Empty, email = string.Empty, password = string.Empty;
+    private string editingEmail = string.Empty, fullName = string.Empty, email = string.Empty;
     private readonly HashSet<string> selectedRoles = new();
     private List<DropDownResponse> roles = new();
     private List<DropDownResponse> operators = new();
@@ -159,7 +156,7 @@
     {
         error = null;
         fieldErrors = new Dictionary<string, string[]>();
-        fullName = email = password = string.Empty;
+        fullName = email = string.Empty;
         selectedRoles.Clear(); selectedOperatorIds.Clear(); isSelf = false;
         busy = false;
         CloseReset();
@@ -230,7 +227,7 @@
 
         var result = isEdit
             ? await AccountClient.Update(new UpdateAccountRequest { Id = editingId, FullName = fullName, RoleNames = selectedRoles.ToList() })
-            : (await AccountClient.Create(new CreateAccountRequest { FullName = fullName, EmailAddress = email, Password = password, RoleNames = selectedRoles.ToList() })) as KubaPC.SharedClient.Services.Models.ApiResult;
+            : (await AccountClient.Create(new CreateAccountRequest { FullName = fullName, EmailAddress = email, RoleNames = selectedRoles.ToList() })) as KubaPC.SharedClient.Services.Models.ApiResult;
 
         busy = false;
 
@@ -242,7 +239,8 @@
             return;
         }
 
-        Guid accountId = isEdit ? editingId : ((KubaPC.SharedClient.Services.Models.ApiResult<Guid>)result).Data;
+        CreateAccountResponse? created = isEdit ? null : ((KubaPC.SharedClient.Services.Models.ApiResult<CreateAccountResponse>)result).Data;
+        Guid accountId = isEdit ? editingId : created!.Id;
         List<Guid> wanted = NeedsOperators ? selectedOperatorIds.ToList() : new List<Guid>();
         var grants = await AccountClient.UpdateOperators(new UpdateAccountOperatorsRequest { AccountId = accountId, OperatorIds = wanted });
 
@@ -253,8 +251,25 @@
             return;
         }
 
+        if (created is not null)
+        {
+            ShowTemporaryPassword(accountId, email, created.TemporaryPassword, created.ExpiresAt);
+            Notifications.Notify(NotificationLevel.Success, "Account created", $"Pass the temporary password on to {fullName}.");
+            await OnSaved.InvokeAsync();
+            return;
+        }
+
         open = false;
-        Notifications.Notify(NotificationLevel.Success, isEdit ? "Account updated" : "Account created", isEdit ? fullName : $"{fullName} can sign in with the temporary password.");
+        Notifications.Notify(NotificationLevel.Success, "Account updated", fullName);
         await OnSaved.InvokeAsync();
+    }
+
+    public void ShowTemporaryPassword(Guid accountId, string emailAddress, string temporaryPassword, DateTime expiresAt)
+    {
+        isEdit = true; isSelf = false; isTargetActive = true; isResetOpen = false;
+        editingId = accountId; editingEmail = emailAddress;
+        generatedPassword = temporaryPassword; generatedExpiry = expiresAt;
+        open = true;
+        StateHasChanged();
     }
 }

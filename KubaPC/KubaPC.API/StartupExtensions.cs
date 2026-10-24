@@ -8,6 +8,9 @@ using KubaPC.Services.Services.Interfaces;
 using FastEndpoints;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 
@@ -28,6 +31,11 @@ namespace KubaPC.API
                 app.UseDefaultExceptionHandler();
                 app.UseHsts();
                 app.UseHttpsRedirection();
+            }
+
+            if (app.Services.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value.KnownProxies.Count > 0)
+            {
+                app.UseForwardedHeaders();
             }
         }
 
@@ -118,6 +126,36 @@ namespace KubaPC.API
                 o.AddPolicy("DOT", p => p.RequireRole("SuperAdmin", "DOT"));
                 o.AddPolicy("Capture", p => p.RequireRole("SuperAdmin", "Operator Staff", "Monitor"));
                 o.AddPolicy("Reader", p => p.RequireRole("SuperAdmin", "Admin", "Operator Staff", "Monitor", "Authoriser", "DOT"));
+            });
+        }
+
+        public static void BuildReverseProxy(this WebApplicationBuilder builder)
+        {
+            string[] knownProxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? Array.Empty<string>();
+
+            builder.Services.AddHsts(options =>
+            {
+                options.MaxAge = TimeSpan.FromDays(365);
+                options.IncludeSubDomains = true;
+            });
+
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.KnownProxies.Clear();
+                options.KnownNetworks.Clear();
+
+                foreach (string proxy in knownProxies)
+                {
+                    if (IPAddress.TryParse(proxy, out IPAddress? address))
+                    {
+                        options.KnownProxies.Add(address);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"ReverseProxy:KnownProxies contains a value that is not an IP address: {proxy}");
+                    }
+                }
             });
         }
 

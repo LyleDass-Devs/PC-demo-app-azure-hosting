@@ -78,7 +78,7 @@
             return;
         }
 
-        string target = SafeReturnUrl(ReturnUrl);
+        string target = ReturnUrlGuard.LocalPathOrHome(ReturnUrl);
 
         if (result.Data.MustChangePassword)
         {
@@ -87,16 +87,6 @@
         }
 
         Navigation.NavigateTo(target);
-    }
-
-    private static string SafeReturnUrl(string? returnUrl)
-    {
-        if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith('/') || returnUrl.StartsWith("//") || returnUrl.Contains('\\'))
-        {
-            return ClientRoutes.HOME;
-        }
-
-        return returnUrl;
     }
 
 }

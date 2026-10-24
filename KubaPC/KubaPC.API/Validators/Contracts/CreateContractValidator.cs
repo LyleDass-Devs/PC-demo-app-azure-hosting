@@ -20,6 +20,7 @@ namespace KubaPC.API.Validators.Contracts
             RuleFor(x => x.CommencementDate).NotEmpty().WithMessage("Enter the commencement date.");
             RuleFor(x => x.ExpiryDate).GreaterThan(x => x.CommencementDate).When(x => x.ExpiryDate.HasValue)
                 .WithMessage("The expiry date must be after the commencement date.");
+            RuleFor(x => x.BankAccountNumber).Matches(@"^[0-9A-Za-z -]+$").When(x => !string.IsNullOrWhiteSpace(x.BankAccountNumber));
             RuleFor(x => x.BankAccountNumber).NotEmpty().When(HasAnyBankDetail)
                 .WithMessage("Enter the account number, or clear all bank details.");
             RuleFor(x => x.BankName).NotEmpty().When(HasAnyBankDetail)
