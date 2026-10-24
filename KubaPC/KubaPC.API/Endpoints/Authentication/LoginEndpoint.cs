@@ -40,7 +40,7 @@ namespace KubaPC.API.Endpoints.Authentication
             }
             catch (Exception e)
             {
-                Logger.LogError(e, "Login failed for {EmailAddress}", request.EmailAddress);
+                Logger.LogError(e, "Login failed");
                 await Send.ErrorsAsync((int)HttpStatusCode.InternalServerError, cancellation: ct);
             }
         }

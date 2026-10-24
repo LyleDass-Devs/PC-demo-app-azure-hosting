@@ -51,7 +51,7 @@ namespace KubaPC.API.Endpoints.Accounts
             }
             catch (Exception e)
             {
-                Logger.LogError(e, "Create account failed for {EmailAddress}", request.EmailAddress);
+                Logger.LogError(e, "Create account failed");
                 await Send.ErrorsAsync((int)HttpStatusCode.InternalServerError, cancellation: ct);
             }
         }
