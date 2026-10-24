@@ -1,6 +1,8 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.PenaltyCaptures.Requests;
 using KubaPC.Models.Contracts.PenaltyCaptures.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -26,7 +28,15 @@ namespace KubaPC.API.Endpoints.PenaltyCaptures
         {
             try
             {
-                await Send.OkAsync(await penaltyReviewService.SelectMatchingUndecided(request.CaptureId), cancellation: ct);
+                LookupResult<MatchingCaptureResponse> result = await penaltyReviewService.SelectMatchingUndecided(request.CaptureId, CallerReader.Read(User));
+
+                if (result.IsForbidden)
+                {
+                    await Send.ForbiddenAsync(ct);
+                    return;
+                }
+
+                await Send.OkAsync(result.Data!, cancellation: ct);
             }
             catch (Exception exception)
             {

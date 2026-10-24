@@ -1,7 +1,9 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.PenaltyCaptures.Requests;
 using KubaPC.Models.Contracts.PenaltyCaptures.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -20,15 +22,16 @@ namespace KubaPC.API.Endpoints.PenaltyCaptures
         {
             Get("/penalty-captures");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
+            Policies("Reader");
         }
 
         public override async Task HandleAsync(PenaltyCaptureListRequest request, CancellationToken ct)
         {
             try
             {
-                Guid actor = Guid.Parse(User.FindFirst("UserId")!.Value);
+                Caller caller = CallerReader.Read(User);
 
-                await Send.OkAsync(await penaltyCaptureService.SelectPagedCaptures(request, actor), cancellation: ct);
+                await Send.OkAsync(await penaltyCaptureService.SelectPagedCaptures(request, caller), cancellation: ct);
             }
             catch (Exception exception)
             {

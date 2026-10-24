@@ -6,7 +6,7 @@ namespace KubaPC.Services.Services.Interfaces
 {
     public interface IIncomeFieldService
     {
-        Task<IncomeFieldsResponse?> SelectByContract(Guid contractId);
-        Task<OperationResult> Save(SaveIncomeFieldsRequest request, Guid actor);
+        Task<IncomeFieldsResponse?> SelectByContract(Guid contractId, Caller caller);
+        Task<OperationResult> Save(SaveIncomeFieldsRequest request, Caller caller);
     }
 }

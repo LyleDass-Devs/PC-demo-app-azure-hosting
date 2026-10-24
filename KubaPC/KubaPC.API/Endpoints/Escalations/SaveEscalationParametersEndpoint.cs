@@ -1,4 +1,5 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Escalations.Requests;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
@@ -26,12 +27,18 @@ namespace KubaPC.API.Endpoints.Escalations
         {
             try
             {
-                Guid actor = Guid.Parse(User.FindFirst("UserId")!.Value);
+                Caller caller = CallerReader.Read(User);
 
-                OperationResult result = await escalationParameterService.Save(request, actor);
+                OperationResult result = await escalationParameterService.Save(request, caller);
 
                 if (!result.IsSuccess)
                 {
+                if (result.IsForbidden)
+                {
+                    await Send.ForbiddenAsync(ct);
+                    return;
+                }
+
                     AddError(result.Error!);
                     await Send.ErrorsAsync(409, ct);
                     return;

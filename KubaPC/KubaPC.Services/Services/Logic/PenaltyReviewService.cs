@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.PenaltyCaptures.Requests;
 using KubaPC.Models.Contracts.PenaltyCaptures.Responses;
 using KubaPC.Models.Internal;
@@ -17,11 +17,26 @@ namespace KubaPC.Services.Services.Logic
 
         private const int MONTHS_BEFORE_DOUBLING = 3;
 
-        public PenaltyReviewService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public PenaltyReviewService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<MatchingCaptureResponse> SelectMatchingUndecided(Guid captureId)
+        public async Task<LookupResult<MatchingCaptureResponse>> SelectMatchingUndecided(Guid captureId, Caller caller)
+        {
+            OperationResult allowed = await access.CheckPenaltyCapture(caller, captureId);
+
+            if (!allowed.IsSuccess)
+            {
+                return LookupResult<MatchingCaptureResponse>.From(allowed);
+            }
+
+            return LookupResult<MatchingCaptureResponse>.Success(await SelectMatching(captureId));
+        }
+
+        private async Task<MatchingCaptureResponse> SelectMatching(Guid captureId)
         {
             const string sql = @"SELECT other.id, other.captured_by_role, a.full_name AS captured_by_name, other.capture_status,
                                         other.penalty_code, other.created_at AS captured_at,
@@ -43,8 +58,16 @@ namespace KubaPC.Services.Services.Logic
             return matching ?? new MatchingCaptureResponse();
         }
 
-        public async Task<OperationResult> ReviewCapture(ReviewPenaltyCaptureRequest request, Guid actor)
+        public async Task<OperationResult> ReviewCapture(ReviewPenaltyCaptureRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckPenaltyCapture(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid actor = caller.AccountId;
             if (request.CaptureStatus is not (APPROVED_STATUS or REJECTED_STATUS or DISPUTED_STATUS))
             {
                 return OperationResult.Failure("A penalty can only be set to Approved, Rejected or Under Dispute.");
@@ -71,7 +94,7 @@ namespace KubaPC.Services.Services.Logic
 
             if (request.CascadeToMatching)
             {
-                MatchingCaptureResponse matching = await SelectMatchingUndecided(capture.Id);
+                MatchingCaptureResponse matching = await SelectMatching(capture.Id);
 
                 if (matching.Id is Guid matchingId && matching.IsUndecided)
                 {

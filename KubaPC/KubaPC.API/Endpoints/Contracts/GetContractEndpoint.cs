@@ -1,6 +1,8 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Contracts.Requests;
 using KubaPC.Models.Contracts.Contracts.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -26,7 +28,7 @@ namespace KubaPC.API.Endpoints.Contracts
         {
             try
             {
-                ContractListResponse? response = await contractService.SelectContract(request.Id);
+                ContractListResponse? response = await contractService.SelectContract(request.Id, CallerReader.Read(User));
 
                 if (response is null)
                 {

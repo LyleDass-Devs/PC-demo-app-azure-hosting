@@ -1,9 +1,10 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.PenaltyCaptures.Requests;
 using KubaPC.Models.Contracts.PenaltyCaptures.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -24,11 +25,14 @@ namespace KubaPC.Services.Services.Logic
             ["captureStatus"] = "p.capture_status"
         };
 
-        public PenaltyCaptureService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public PenaltyCaptureService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<PagedResponse<PenaltyCaptureResponse>> SelectPagedCaptures(PenaltyCaptureListRequest request, Guid actor)
+        public async Task<PagedResponse<PenaltyCaptureResponse>> SelectPagedCaptures(PenaltyCaptureListRequest request, Caller caller)
         {
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mapped) ? mapped : "t.scheduled_date";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
@@ -37,7 +41,8 @@ namespace KubaPC.Services.Services.Logic
                                    t.scheduled_date AS trip_date, p.penalty_list_item_id, p.penalty_code,
                                    pli.description AS penalty_description, pli.penalty_type, pli.rand_amount_minor,
                                    p.vehicle_id, v.vehicle_number, p.trip_detail, p.captured_by_role,
-                                   a.full_name AS captured_by_name, p.created_by AS captured_by_id,
+                                   a.full_name AS captured_by_name, p.created_by AS captured_by_id,
+
                                    decider.full_name AS status_updated_by_name, p.status_updated_at,
                                    p.capture_status, p.status_reason, p.effective_rand_amount_minor, p.repeat_escalation_applied,
                                    (p.created_by = @Actor) AS is_mine,
@@ -47,23 +52,29 @@ namespace KubaPC.Services.Services.Logic
                             JOIN trips t ON t.id = p.trip_id
                             JOIN penalty_list_items pli ON pli.id = p.penalty_list_item_id
                             LEFT JOIN vehicles v ON v.id = p.vehicle_id
-                            LEFT JOIN accounts a ON a.id = p.created_by
+                            LEFT JOIN accounts a ON a.id = p.created_by
+
                             LEFT JOIN accounts decider ON decider.id = p.status_updated_by
                             WHERE p.is_active
                               AND (@PaymentCertificateId IS NULL OR p.payment_certificate_id = @PaymentCertificateId)
-                              AND (@TripId IS NULL OR p.trip_id = @TripId)
-                              AND (@ContractId IS NULL OR r.contract_id = @ContractId)
+                              AND (@TripId IS NULL OR p.trip_id = @TripId)
+
+                              AND (@ContractId IS NULL OR r.contract_id = @ContractId)
+
                               AND (@CapturedByRole IS NULL OR p.captured_by_role = @CapturedByRole)
                               AND (@CaptureStatus IS NULL OR p.capture_status = @CaptureStatus)
                               AND (@Search IS NULL OR p.penalty_code ILIKE @SearchPattern OR pli.description ILIKE @SearchPattern)
+                              {OperatorScope.ForContractColumn("r.contract_id")}
                             ORDER BY {sortColumn} {sortDirection}, p.penalty_code
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
-            parameters.Add("Actor", actor, DbType.Guid);
+            OperatorScope.AddParameters(parameters, caller);
             parameters.Add("PaymentCertificateId", request.PaymentCertificateId, DbType.Guid);
-            parameters.Add("TripId", request.TripId, DbType.Guid);
-            parameters.Add("ContractId", request.ContractId, DbType.Guid);
+            parameters.Add("TripId", request.TripId, DbType.Guid);
+
+            parameters.Add("ContractId", request.ContractId, DbType.Guid);
+
             parameters.Add("CapturedByRole", request.CapturedByRole, DbType.String);
             parameters.Add("CaptureStatus", request.CaptureStatus, DbType.String);
             parameters.Add("Search", request.Search, DbType.String);
@@ -107,15 +118,25 @@ namespace KubaPC.Services.Services.Logic
                     EffectiveRandAmount = row.EffectiveRandAmountMinor is null ? null : Money.ToRands(row.EffectiveRandAmountMinor.Value),
 
                     IsRepeatEscalationApplied = row.RepeatEscalationApplied,
-                    IsMine = row.IsMine,
-                    StatusUpdatedByName = row.StatusUpdatedByName,
+                    IsMine = row.IsMine,
+
+                    StatusUpdatedByName = row.StatusUpdatedByName,
+
                     StatusUpdatedAt = row.StatusUpdatedAt
                 }).ToList()
             };
         }
 
-        public async Task<CreateResult> CreateCapture(CreatePenaltyCaptureRequest request, Guid actor, string capturedByRole)
+        public async Task<CreateResult> CreateCapture(CreatePenaltyCaptureRequest request, Caller caller, string capturedByRole)
         {
+            OperationResult allowed = await access.CheckTrip(caller, request.TripId);
+
+            if (!allowed.IsSuccess)
+            {
+                return CreateResult.From(allowed);
+            }
+
+            Guid actor = caller.AccountId;
             PenaltyItemModel? item = await SelectPenaltyItem(request.PenaltyListItemId);
 
             if (item is null)
@@ -163,8 +184,23 @@ namespace KubaPC.Services.Services.Logic
             return CreateResult.Success(id);
         }
 
-        public async Task<OperationResult> UpdateCapture(UpdatePenaltyCaptureRequest request, Guid actor)
+        public async Task<OperationResult> UpdateCapture(UpdatePenaltyCaptureRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckPenaltyCapture(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            OperationResult targetAllowed = await access.CheckTrip(caller, request.TripId);
+
+            if (!targetAllowed.IsSuccess)
+            {
+                return targetAllowed;
+            }
+
+            Guid actor = caller.AccountId;
             OperationResult owned = await CheckOwnership(request.Id, actor);
 
             if (!owned.IsSuccess)
@@ -221,8 +257,16 @@ namespace KubaPC.Services.Services.Logic
             return OperationResult.Success();
         }
 
-        public async Task<OperationResult> DeleteCapture(DeletePenaltyCaptureRequest request, Guid actor)
+        public async Task<OperationResult> DeleteCapture(DeletePenaltyCaptureRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckPenaltyCapture(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid actor = caller.AccountId;
             OperationResult owned = await CheckOwnership(request.Id, actor);
 
             if (!owned.IsSuccess)
@@ -241,18 +285,32 @@ namespace KubaPC.Services.Services.Logic
             return OperationResult.Success();
         }
 
-        public async Task<List<DropDownResponse>> SelectContractRoutes(Guid contractId)
+        public async Task<LookupResult<List<DropDownResponse>>> SelectContractRoutes(Guid contractId, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, contractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return LookupResult<List<DropDownResponse>>.From(allowed);
+            }
+
             const string sql = @"SELECT id, route_number || ' ' || direction AS value
                                  FROM routes
                                  WHERE contract_id = @ContractId AND is_active
                                  ORDER BY route_number, direction";
 
-            return await _dataAccess.QueryAsync<DropDownResponse>(sql, new { ContractId = contractId });
+            return LookupResult<List<DropDownResponse>>.Success(await _dataAccess.QueryAsync<DropDownResponse>(sql, new { ContractId = contractId }));
         }
 
-        public async Task<List<TripOptionResponse>> SelectRouteTrips(TripLookupRequest request)
+        public async Task<LookupResult<List<TripOptionResponse>>> SelectRouteTrips(TripLookupRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckRoute(caller, request.RouteId);
+
+            if (!allowed.IsSuccess)
+            {
+                return LookupResult<List<TripOptionResponse>>.From(allowed);
+            }
+
             const string sql = @"SELECT t.id, t.trip_number, t.scheduled_date, t.scheduled_departure,
                                         r.route_number, r.direction
                                  FROM trips t
@@ -270,22 +328,36 @@ namespace KubaPC.Services.Services.Logic
             parameters.Add("PaymentCertificateId", request.PaymentCertificateId, DbType.Guid);
             parameters.Add("TripDate", request.TripDate, DbType.Date);
 
-            return await _dataAccess.QueryAsync<TripOptionResponse>(sql, parameters);
+            return LookupResult<List<TripOptionResponse>>.Success(await _dataAccess.QueryAsync<TripOptionResponse>(sql, parameters));
         }
 
-        public async Task<List<DropDownResponse>> SelectContractVehicles(Guid contractId)
+        public async Task<LookupResult<List<DropDownResponse>>> SelectContractVehicles(Guid contractId, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, contractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return LookupResult<List<DropDownResponse>>.From(allowed);
+            }
+
             const string sql = @"SELECT v.id, v.vehicle_number || ' (' || v.vehicle_type || ')' AS value
                                  FROM vehicles v
                                  JOIN contracts c ON c.operator_id = v.operator_id
                                  WHERE c.id = @ContractId AND v.is_active
                                  ORDER BY v.vehicle_number";
 
-            return await _dataAccess.QueryAsync<DropDownResponse>(sql, new { ContractId = contractId });
+            return LookupResult<List<DropDownResponse>>.Success(await _dataAccess.QueryAsync<DropDownResponse>(sql, new { ContractId = contractId }));
         }
 
-        public async Task<List<DropDownResponse>> SelectContractPenaltyItems(Guid contractId, string? penaltyType)
+        public async Task<LookupResult<List<DropDownResponse>>> SelectContractPenaltyItems(Guid contractId, string? penaltyType, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, contractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return LookupResult<List<DropDownResponse>>.From(allowed);
+            }
+
             const string sql = @"SELECT id, penalty_code || ' - ' || description AS value
                                  FROM penalty_list_items
                                  WHERE contract_id = @ContractId AND is_active
@@ -296,7 +368,7 @@ namespace KubaPC.Services.Services.Logic
             parameters.Add("ContractId", contractId, DbType.Guid);
             parameters.Add("PenaltyType", penaltyType, DbType.String);
 
-            return await _dataAccess.QueryAsync<DropDownResponse>(sql, parameters);
+            return LookupResult<List<DropDownResponse>>.Success(await _dataAccess.QueryAsync<DropDownResponse>(sql, parameters));
         }
 
         private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -466,8 +538,10 @@ namespace KubaPC.Services.Services.Logic
             public long? EffectiveRandAmountMinor { get; set; }
 
             public bool RepeatEscalationApplied { get; set; }
-            public bool IsMine { get; set; }
-            public string? StatusUpdatedByName { get; set; }
+            public bool IsMine { get; set; }
+
+            public string? StatusUpdatedByName { get; set; }
+
             public DateTime? StatusUpdatedAt { get; set; }
             public long TotalCount { get; set; }
         }

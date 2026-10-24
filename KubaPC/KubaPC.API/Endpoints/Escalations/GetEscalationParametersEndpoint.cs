@@ -1,6 +1,8 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Escalations.Requests;
 using KubaPC.Models.Contracts.Escalations.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -26,7 +28,7 @@ namespace KubaPC.API.Endpoints.Escalations
         {
             try
             {
-                EscalationParametersResponse? response = await escalationParameterService.SelectByContract(request.ContractId);
+                EscalationParametersResponse? response = await escalationParameterService.SelectByContract(request.ContractId, CallerReader.Read(User));
                 if (response is null)
                 {
                     await Send.NoContentAsync(ct);

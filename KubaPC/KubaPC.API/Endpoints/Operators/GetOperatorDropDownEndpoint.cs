@@ -1,5 +1,7 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Common.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -25,7 +27,7 @@ namespace KubaPC.API.Endpoints.Operators
         {
             try
             {
-                await Send.OkAsync(await operatorService.SelectDropDown(), cancellation: ct);
+                await Send.OkAsync(await operatorService.SelectDropDown(CallerReader.Read(User)), cancellation: ct);
             }
             catch (Exception exception)
             {

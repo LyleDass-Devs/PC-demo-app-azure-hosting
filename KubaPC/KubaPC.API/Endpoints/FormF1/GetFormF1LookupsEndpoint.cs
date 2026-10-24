@@ -18,6 +18,7 @@ namespace KubaPC.API.Endpoints.FormF1
         {
             Get("/form-f1/lookups");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
+            Policies("Reader");
         }
 
         public override async Task HandleAsync(CancellationToken ct)

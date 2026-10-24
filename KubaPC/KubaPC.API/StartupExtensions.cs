@@ -80,6 +80,7 @@ namespace KubaPC.API
                 o.AddPolicy("Authoriser", p => p.RequireRole("SuperAdmin", "Authoriser"));
                 o.AddPolicy("DOT", p => p.RequireRole("SuperAdmin", "DOT"));
                 o.AddPolicy("Capture", p => p.RequireRole("SuperAdmin", "Operator Staff", "Monitor"));
+                o.AddPolicy("Reader", p => p.RequireRole("SuperAdmin", "Admin", "Operator Staff", "Monitor", "Authoriser", "DOT"));
             });
         }
 

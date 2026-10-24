@@ -1,9 +1,10 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.Penalties.Requests;
 using KubaPC.Models.Contracts.Penalties.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -24,11 +25,14 @@ namespace KubaPC.Services.Services.Logic
         private const string ELEVATE = "BEGIN; SET LOCAL ROLE kubapc_administrator; ";
         private const string COMMIT = "; COMMIT;";
 
-        public PenaltyListService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public PenaltyListService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<PagedResponse<PenaltyListItemResponse>> SelectPagedItems(PenaltyListItemListRequest request)
+        public async Task<PagedResponse<PenaltyListItemResponse>> SelectPagedItems(PenaltyListItemListRequest request, Caller caller)
         {
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mappedColumn) ? mappedColumn : "p.penalty_code";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
@@ -44,10 +48,12 @@ namespace KubaPC.Services.Services.Logic
                               AND (@OperatorId IS NULL OR c.operator_id = @OperatorId)
                               AND (@Search IS NULL OR p.penalty_code ILIKE @SearchPattern OR p.description ILIKE @SearchPattern)
                               AND (@IsActive IS NULL OR p.is_active = @IsActive)
+                              {OperatorScope.ForOperatorColumn("c.operator_id")}
                             ORDER BY {sortColumn} {sortDirection}
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
+            OperatorScope.AddParameters(parameters, caller);
             parameters.Add("ContractId", request.ContractId, DbType.Guid);
             parameters.Add("OperatorId", request.OperatorId, DbType.Guid);
             parameters.Add("Search", request.Search, DbType.String);
@@ -99,8 +105,16 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        public async Task<CreateResult> CreateItem(CreatePenaltyListItemRequest request, Guid createdBy)
+        public async Task<CreateResult> CreateItem(CreatePenaltyListItemRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, request.ContractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return CreateResult.From(allowed);
+            }
+
+            Guid createdBy = caller.AccountId;
             const string contractSql = @"SELECT count(*) FROM contracts WHERE id = @ContractId AND is_active";
             long contractCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(contractSql, new { request.ContractId });
 
@@ -138,8 +152,16 @@ namespace KubaPC.Services.Services.Logic
             return CreateResult.Success(id);
         }
 
-        public async Task<OperationResult> UpdateItem(UpdatePenaltyListItemRequest request, Guid modifiedBy)
+        public async Task<OperationResult> UpdateItem(UpdatePenaltyListItemRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckPenaltyListItem(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string contractSql = @"SELECT contract_id FROM penalty_list_items WHERE id = @Id AND is_active";
             Guid? contractId = await _dataAccess.QuerySingleOrDefaultAsync<Guid?>(contractSql, new { request.Id });
 
@@ -183,8 +205,16 @@ namespace KubaPC.Services.Services.Logic
             return OperationResult.Success();
         }
 
-        public async Task<OperationResult> DeactivateItem(Guid itemId, Guid modifiedBy)
+        public async Task<OperationResult> DeactivateItem(Guid itemId, Caller caller)
         {
+            OperationResult allowed = await access.CheckPenaltyListItem(caller, itemId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string sql = ELEVATE + @"UPDATE penalty_list_items
                                  SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy
                                  WHERE id = @ItemId AND is_active" + COMMIT;
@@ -196,8 +226,16 @@ namespace KubaPC.Services.Services.Logic
                 : OperationResult.Success();
         }
 
-        public async Task<OperationResult> ReactivateItem(Guid itemId, Guid modifiedBy)
+        public async Task<OperationResult> ReactivateItem(Guid itemId, Caller caller)
         {
+            OperationResult allowed = await access.CheckPenaltyListItem(caller, itemId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string itemSql = @"SELECT p.contract_id, p.penalty_code
                                      FROM penalty_list_items p
                                      JOIN contracts c ON c.id = p.contract_id AND c.is_active

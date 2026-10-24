@@ -15,11 +15,26 @@ namespace KubaPC.Services.Services.Logic
         private const string REJECTED_STATUS = "Rejected";
         private const string DISPUTED_STATUS = "Under Dispute";
 
-        public FormF1ReviewService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public FormF1ReviewService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<MatchingFormF1Response> SelectMatchingUndecided(Guid recordId)
+        public async Task<LookupResult<MatchingFormF1Response>> SelectMatchingUndecided(Guid recordId, Caller caller)
+        {
+            OperationResult allowed = await access.CheckFormF1Record(caller, recordId);
+
+            if (!allowed.IsSuccess)
+            {
+                return LookupResult<MatchingFormF1Response>.From(allowed);
+            }
+
+            return LookupResult<MatchingFormF1Response>.Success(await SelectMatching(recordId));
+        }
+
+        private async Task<MatchingFormF1Response> SelectMatching(Guid recordId)
         {
             const string sql = @"SELECT other.id, other.captured_by_role, a.full_name AS captured_by_name, other.record_status,
                                         other.record_type, other.created_at AS captured_at,
@@ -41,8 +56,16 @@ namespace KubaPC.Services.Services.Logic
             return matching ?? new MatchingFormF1Response();
         }
 
-        public async Task<OperationResult> ReviewRecord(ReviewFormF1RecordRequest request, Guid actor)
+        public async Task<OperationResult> ReviewRecord(ReviewFormF1RecordRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckFormF1Record(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid actor = caller.AccountId;
             if (request.RecordStatus is not (APPROVED_STATUS or REJECTED_STATUS or DISPUTED_STATUS))
             {
                 return OperationResult.Failure("A Form F1 record can only be set to Approved, Rejected or Under Dispute.");
@@ -69,7 +92,7 @@ namespace KubaPC.Services.Services.Logic
 
             if (request.CascadeToMatching)
             {
-                MatchingFormF1Response matching = await SelectMatchingUndecided(record.Id);
+                MatchingFormF1Response matching = await SelectMatching(record.Id);
 
                 if (matching.Id is Guid matchingId && matching.IsUndecided)
                 {

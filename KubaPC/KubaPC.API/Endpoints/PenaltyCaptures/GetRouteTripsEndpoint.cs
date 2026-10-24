@@ -1,6 +1,8 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.PenaltyCaptures.Requests;
 using KubaPC.Models.Contracts.PenaltyCaptures.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -19,13 +21,22 @@ namespace KubaPC.API.Endpoints.PenaltyCaptures
         {
             Get("/penalty-captures/trips");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
+            Policies("Reader");
         }
 
         public override async Task HandleAsync(TripLookupRequest request, CancellationToken ct)
         {
             try
             {
-                await Send.OkAsync(await penaltyCaptureService.SelectRouteTrips(request), cancellation: ct);
+                LookupResult<List<TripOptionResponse>> result = await penaltyCaptureService.SelectRouteTrips(request, CallerReader.Read(User));
+
+                if (result.IsForbidden)
+                {
+                    await Send.ForbiddenAsync(ct);
+                    return;
+                }
+
+                await Send.OkAsync(result.Data!, cancellation: ct);
             }
             catch (Exception exception)
             {

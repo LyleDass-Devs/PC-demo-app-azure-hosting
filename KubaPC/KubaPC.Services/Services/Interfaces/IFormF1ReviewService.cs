@@ -6,7 +6,7 @@ namespace KubaPC.Services.Services.Interfaces
 {
     public interface IFormF1ReviewService
     {
-        Task<MatchingFormF1Response> SelectMatchingUndecided(Guid recordId);
-        Task<OperationResult> ReviewRecord(ReviewFormF1RecordRequest request, Guid actor);
+        Task<LookupResult<MatchingFormF1Response>> SelectMatchingUndecided(Guid recordId, Caller caller);
+        Task<OperationResult> ReviewRecord(ReviewFormF1RecordRequest request, Caller caller);
     }
 }

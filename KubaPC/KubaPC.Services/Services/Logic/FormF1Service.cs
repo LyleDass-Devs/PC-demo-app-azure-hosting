@@ -4,6 +4,7 @@ using KubaPC.Models.Contracts.FormF1.Requests;
 using KubaPC.Models.Contracts.FormF1.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -23,11 +24,14 @@ namespace KubaPC.Services.Services.Logic
             ["capturedByRole"] = "f.captured_by_role"
         };
 
-        public FormF1Service(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public FormF1Service(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<PagedResponse<FormF1RecordResponse>> SelectPaged(FormF1ListRequest request, Guid actor)
+        public async Task<PagedResponse<FormF1RecordResponse>> SelectPaged(FormF1ListRequest request, Caller caller)
         {
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mapped) ? mapped : "t.scheduled_date";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
@@ -54,11 +58,12 @@ namespace KubaPC.Services.Services.Logic
                               AND (@RecordStatus IS NULL OR f.record_status = @RecordStatus)
                               AND (@CapturedByRole IS NULL OR f.captured_by_role = @CapturedByRole)
                               AND (@Search IS NULL OR f.reason ILIKE @SearchPattern OR f.dno_explanation ILIKE @SearchPattern)
+                              {OperatorScope.ForContractColumn("r.contract_id")}
                             ORDER BY {sortColumn} {sortDirection}, t.trip_number, f.record_type
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
-            parameters.Add("Actor", actor, DbType.Guid);
+            OperatorScope.AddParameters(parameters, caller);
             parameters.Add("PaymentCertificateId", request.PaymentCertificateId, DbType.Guid);
             parameters.Add("TripId", request.TripId, DbType.Guid);
             parameters.Add("ContractId", request.ContractId, DbType.Guid);
@@ -118,8 +123,16 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        public async Task<CreateResult> Create(CreateFormF1RecordRequest request, Guid actor, string capturedByRole)
+        public async Task<CreateResult> Create(CreateFormF1RecordRequest request, Caller caller, string capturedByRole)
         {
+            OperationResult allowed = await access.CheckTrip(caller, request.TripId);
+
+            if (!allowed.IsSuccess)
+            {
+                return CreateResult.From(allowed);
+            }
+
+            Guid actor = caller.AccountId;
             OperationResult shape = await ValidateRecord(request.RecordType, request.DnoReasonId, request.DnoExplanation, request.RouteId, request.TripId, request.PaymentCertificateId);
 
             if (!shape.IsSuccess)
@@ -153,8 +166,23 @@ namespace KubaPC.Services.Services.Logic
             return CreateResult.Success(id);
         }
 
-        public async Task<OperationResult> Update(UpdateFormF1RecordRequest request, Guid actor)
+        public async Task<OperationResult> Update(UpdateFormF1RecordRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckFormF1Record(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            OperationResult targetAllowed = await access.CheckTrip(caller, request.TripId);
+
+            if (!targetAllowed.IsSuccess)
+            {
+                return targetAllowed;
+            }
+
+            Guid actor = caller.AccountId;
             OperationResult owned = await CheckOwnership(request.Id, actor);
 
             if (!owned.IsSuccess)
@@ -197,8 +225,16 @@ namespace KubaPC.Services.Services.Logic
             return OperationResult.Success();
         }
 
-        public async Task<OperationResult> Delete(DeleteFormF1RecordRequest request, Guid actor)
+        public async Task<OperationResult> Delete(DeleteFormF1RecordRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckFormF1Record(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid actor = caller.AccountId;
             OperationResult owned = await CheckOwnership(request.Id, actor);
 
             if (!owned.IsSuccess)

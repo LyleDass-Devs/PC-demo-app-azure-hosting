@@ -1,4 +1,4 @@
-﻿using FastEndpoints;
+using FastEndpoints;
 using KubaPC.Models.Contracts.Operators.Requests;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
@@ -19,7 +19,7 @@ namespace KubaPC.API.Endpoints.Operators
         {
             Post("/operators/create");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
-            Policies("Admin");
+            Policies("SuperAdmin");
         }
 
         public override async Task HandleAsync(CreateOperatorRequest request, CancellationToken ct)

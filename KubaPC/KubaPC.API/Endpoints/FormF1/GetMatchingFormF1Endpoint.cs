@@ -1,6 +1,8 @@
 using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.FormF1.Requests;
 using KubaPC.Models.Contracts.FormF1.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -26,7 +28,15 @@ namespace KubaPC.API.Endpoints.FormF1
         {
             try
             {
-                await Send.OkAsync(await formF1ReviewService.SelectMatchingUndecided(request.RecordId), cancellation: ct);
+                LookupResult<MatchingFormF1Response> result = await formF1ReviewService.SelectMatchingUndecided(request.RecordId, CallerReader.Read(User));
+
+                if (result.IsForbidden)
+                {
+                    await Send.ForbiddenAsync(ct);
+                    return;
+                }
+
+                await Send.OkAsync(result.Data!, cancellation: ct);
             }
             catch (Exception exception)
             {

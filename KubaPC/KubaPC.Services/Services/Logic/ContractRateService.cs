@@ -1,9 +1,10 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.ContractRates.Requests;
 using KubaPC.Models.Contracts.ContractRates.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -24,11 +25,14 @@ namespace KubaPC.Services.Services.Logic
         private const string ELEVATE = "BEGIN; SET LOCAL ROLE kubapc_administrator; ";
         private const string COMMIT = "; COMMIT;";
 
-        public ContractRateService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public ContractRateService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<PagedResponse<ContractRateResponse>> SelectPagedRates(ContractRateListRequest request)
+        public async Task<PagedResponse<ContractRateResponse>> SelectPagedRates(ContractRateListRequest request, Caller caller)
         {
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mappedColumn) ? mappedColumn : "r.effective_from_date";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
@@ -46,10 +50,12 @@ namespace KubaPC.Services.Services.Logic
                               AND (@VehicleType IS NULL OR r.vehicle_type = @VehicleType)
                               AND (@Search IS NULL OR c.contract_number ILIKE @SearchPattern OR o.operator_name ILIKE @SearchPattern)
                               AND (@IsActive IS NULL OR r.is_active = @IsActive)
+                              {OperatorScope.ForOperatorColumn("c.operator_id")}
                             ORDER BY {sortColumn} {sortDirection}, r.vehicle_type, r.effective_from_date DESC
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
+            OperatorScope.AddParameters(parameters, caller);
             parameters.Add("ContractId", request.ContractId, DbType.Guid);
             parameters.Add("OperatorId", request.OperatorId, DbType.Guid);
             parameters.Add("VehicleType", request.VehicleType, DbType.String);
@@ -87,8 +93,16 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        public async Task<CreateResult> CreateRate(CreateContractRateRequest request, Guid createdBy)
+        public async Task<CreateResult> CreateRate(CreateContractRateRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, request.ContractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return CreateResult.From(allowed);
+            }
+
+            Guid createdBy = caller.AccountId;
             const string contractSql = @"SELECT count(*) FROM contracts WHERE id = @ContractId AND is_active";
             long contractCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(contractSql, new { request.ContractId });
 
@@ -136,8 +150,16 @@ namespace KubaPC.Services.Services.Logic
             return CreateResult.Success(id);
         }
 
-        public async Task<OperationResult> UpdateRate(UpdateContractRateRequest request, Guid modifiedBy)
+        public async Task<OperationResult> UpdateRate(UpdateContractRateRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckContractRate(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string rateSql = @"SELECT contract_id, vehicle_type, effective_to_date FROM contract_rates WHERE id = @Id AND is_active";
             ContractRateRowModel? rate = await _dataAccess.QuerySingleOrDefaultAsync<ContractRateRowModel>(rateSql, new { request.Id });
 
@@ -187,8 +209,16 @@ namespace KubaPC.Services.Services.Logic
             return OperationResult.Success();
         }
 
-        public async Task<OperationResult> DeactivateRate(Guid rateId, Guid modifiedBy)
+        public async Task<OperationResult> DeactivateRate(Guid rateId, Caller caller)
         {
+            OperationResult allowed = await access.CheckContractRate(caller, rateId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string rateSql = @"SELECT contract_id, vehicle_type, effective_to_date FROM contract_rates WHERE id = @RateId AND is_active";
             ContractRateRowModel? rate = await _dataAccess.QuerySingleOrDefaultAsync<ContractRateRowModel>(rateSql, new { RateId = rateId });
 

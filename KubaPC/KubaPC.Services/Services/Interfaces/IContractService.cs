@@ -1,4 +1,4 @@
-﻿using KubaPC.Models.Contracts.Common.Responses;
+using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.Contracts.Requests;
 using KubaPC.Models.Contracts.Contracts.Responses;
 using KubaPC.Models.Internal;
@@ -7,12 +7,12 @@ namespace KubaPC.Services.Services.Interfaces
 {
     public interface IContractService
     {
-        Task<PagedResponse<ContractListResponse>> SelectPagedContractList(ContractListRequest request);
-        Task<ContractListResponse?> SelectContract(Guid contractId);
-        Task<List<DropDownResponse>> SelectDropDown(Guid? operatorId);
-        Task<CreateResult> CreateContract(CreateContractRequest request, Guid createdBy);
-        Task<OperationResult> UpdateContract(UpdateContractRequest request, Guid modifiedBy);
-        Task<OperationResult> DeactivateContract(Guid contractId, Guid modifiedBy);
-        Task<OperationResult> ReactivateContract(Guid contractId, Guid modifiedBy);
+        Task<PagedResponse<ContractListResponse>> SelectPagedContractList(ContractListRequest request, Caller caller);
+        Task<ContractListResponse?> SelectContract(Guid contractId, Caller caller);
+        Task<List<DropDownResponse>> SelectDropDown(Guid? operatorId, Caller caller);
+        Task<CreateResult> CreateContract(CreateContractRequest request, Caller caller);
+        Task<OperationResult> UpdateContract(UpdateContractRequest request, Caller caller);
+        Task<OperationResult> DeactivateContract(Guid contractId, Caller caller);
+        Task<OperationResult> ReactivateContract(Guid contractId, Caller caller);
     }
 }

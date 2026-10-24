@@ -1,4 +1,4 @@
-﻿using FastEndpoints;
+using FastEndpoints;
 using KubaPC.Models.Contracts.Penalties.Responses;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -18,6 +18,7 @@ namespace KubaPC.API.Endpoints.Penalties
         {
             Get("/penalty-list/lookups");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
+            Policies("Reader");
         }
 
         public override async Task HandleAsync(CancellationToken ct)

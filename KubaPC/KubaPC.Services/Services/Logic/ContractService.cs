@@ -1,9 +1,10 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.Contracts.Requests;
 using KubaPC.Models.Contracts.Contracts.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -20,11 +21,14 @@ namespace KubaPC.Services.Services.Logic
             ["operatorName"] = "o.operator_name"
         };
 
-        public ContractService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public ContractService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<PagedResponse<ContractListResponse>> SelectPagedContractList(ContractListRequest request)
+        public async Task<PagedResponse<ContractListResponse>> SelectPagedContractList(ContractListRequest request, Caller caller)
         {
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mappedColumn) ? mappedColumn : "c.commencement_date";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
@@ -39,10 +43,12 @@ namespace KubaPC.Services.Services.Logic
                             WHERE (@OperatorId IS NULL OR c.operator_id = @OperatorId)
                               AND (@Search IS NULL OR c.contract_number ILIKE @SearchPattern OR c.contract_name ILIKE @SearchPattern)
                               AND (@IsActive IS NULL OR c.is_active = @IsActive)
+                              {OperatorScope.ForOperatorColumn("c.operator_id")}
                             ORDER BY {sortColumn} {sortDirection}
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
+            OperatorScope.AddParameters(parameters, caller);
             parameters.Add("OperatorId", request.OperatorId, DbType.Guid);
             parameters.Add("Search", request.Search, DbType.String);
             parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
@@ -82,8 +88,15 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        public async Task<ContractListResponse?> SelectContract(Guid contractId)
+        public async Task<ContractListResponse?> SelectContract(Guid contractId, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, contractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return null;
+            }
+
             const string sql = @"SELECT c.id, c.operator_id, o.operator_name, c.contract_number, c.contract_name, c.commencement_date, c.expiry_date, c.is_active,
                                         c.bank_name, c.bank_branch_name, c.bank_branch_code, c.bank_account_name, c.bank_account_number, c.bank_account_type,
                                         0 AS rate_count, 0 AS certificate_count, 0::bigint AS total_count
@@ -112,22 +125,32 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        public async Task<List<DropDownResponse>> SelectDropDown(Guid? operatorId)
+        public async Task<List<DropDownResponse>> SelectDropDown(Guid? operatorId, Caller caller)
         {
-            const string sql = @"SELECT c.id, c.contract_number || ' - ' || o.operator_name AS value
-                                 FROM contracts c
-                                 JOIN operators o ON o.id = c.operator_id AND o.is_active
-                                 WHERE c.is_active AND (@OperatorId IS NULL OR c.operator_id = @OperatorId)
-                                 ORDER BY o.operator_name, c.contract_number";
+            string sql = $@"SELECT c.id, c.contract_number || ' - ' || o.operator_name AS value
+                            FROM contracts c
+                            JOIN operators o ON o.id = c.operator_id AND o.is_active
+                            WHERE c.is_active AND (@OperatorId IS NULL OR c.operator_id = @OperatorId)
+                            {OperatorScope.ForOperatorColumn("c.operator_id")}
+                            ORDER BY o.operator_name, c.contract_number";
 
             DynamicParameters parameters = new();
+            OperatorScope.AddParameters(parameters, caller);
             parameters.Add("OperatorId", operatorId, DbType.Guid);
 
             return await _dataAccess.QueryAsync<DropDownResponse>(sql, parameters);
         }
 
-        public async Task<CreateResult> CreateContract(CreateContractRequest request, Guid createdBy)
+        public async Task<CreateResult> CreateContract(CreateContractRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckOperator(caller, request.OperatorId);
+
+            if (!allowed.IsSuccess)
+            {
+                return CreateResult.From(allowed);
+            }
+
+            Guid createdBy = caller.AccountId;
             const string operatorSql = @"SELECT count(*) FROM operators WHERE id = @OperatorId AND is_active";
             long operatorCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(operatorSql, new { request.OperatorId });
 
@@ -170,8 +193,16 @@ namespace KubaPC.Services.Services.Logic
             return CreateResult.Success(id);
         }
 
-        public async Task<OperationResult> UpdateContract(UpdateContractRequest request, Guid modifiedBy)
+        public async Task<OperationResult> UpdateContract(UpdateContractRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             string contractNumber = request.ContractNumber.Trim();
 
             if (await IsContractNumberTaken(contractNumber, request.Id))
@@ -215,8 +246,16 @@ namespace KubaPC.Services.Services.Logic
                 : OperationResult.Success();
         }
 
-        public async Task<OperationResult> DeactivateContract(Guid contractId, Guid modifiedBy)
+        public async Task<OperationResult> DeactivateContract(Guid contractId, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, contractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string sql = @"UPDATE contracts
                                  SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy
                                  WHERE id = @ContractId AND is_active";
@@ -228,8 +267,16 @@ namespace KubaPC.Services.Services.Logic
                 : OperationResult.Success();
         }
 
-        public async Task<OperationResult> ReactivateContract(Guid contractId, Guid modifiedBy)
+        public async Task<OperationResult> ReactivateContract(Guid contractId, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, contractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string numberSql = @"SELECT c.contract_number
                                        FROM contracts c
                                        JOIN operators o ON o.id = c.operator_id AND o.is_active

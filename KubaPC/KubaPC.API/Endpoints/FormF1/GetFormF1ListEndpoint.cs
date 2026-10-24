@@ -1,7 +1,9 @@
 using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.FormF1.Requests;
 using KubaPC.Models.Contracts.FormF1.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -20,15 +22,16 @@ namespace KubaPC.API.Endpoints.FormF1
         {
             Get("/form-f1");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
+            Policies("Reader");
         }
 
         public override async Task HandleAsync(FormF1ListRequest request, CancellationToken ct)
         {
             try
             {
-                Guid actor = Guid.Parse(User.FindFirst("UserId")!.Value);
+                Caller caller = CallerReader.Read(User);
 
-                await Send.OkAsync(await formF1Service.SelectPaged(request, actor), cancellation: ct);
+                await Send.OkAsync(await formF1Service.SelectPaged(request, caller), cancellation: ct);
             }
             catch (Exception exception)
             {

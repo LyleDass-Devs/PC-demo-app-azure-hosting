@@ -1,7 +1,9 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.Operators.Requests;
 using KubaPC.Models.Contracts.Operators.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -27,7 +29,7 @@ namespace KubaPC.API.Endpoints.Operators
         {
             try
             {
-                PagedResponse<OperatorListResponse> response = await operatorService.SelectPagedOperatorList(request);
+                PagedResponse<OperatorListResponse> response = await operatorService.SelectPagedOperatorList(request, CallerReader.Read(User));
                 await Send.OkAsync(response, cancellation: ct);
             }
             catch (Exception exception)

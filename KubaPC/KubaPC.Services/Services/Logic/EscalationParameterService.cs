@@ -1,7 +1,8 @@
-﻿using KubaPC.Models.Contracts.Escalations.Requests;
+using KubaPC.Models.Contracts.Escalations.Requests;
 using KubaPC.Models.Contracts.Escalations.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System;
 using System.Collections.Generic;
@@ -14,12 +15,22 @@ namespace KubaPC.Services.Services.Logic
         private const string ELEVATE = "BEGIN; SET LOCAL ROLE kubapc_administrator; ";
         private const string COMMIT = "; COMMIT;";
 
-        public EscalationParameterService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public EscalationParameterService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<EscalationParametersResponse?> SelectByContract(Guid contractId)
+        public async Task<EscalationParametersResponse?> SelectByContract(Guid contractId, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, contractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return null;
+            }
+
             const string sql = @"SELECT id, contract_id, labour_weight, fuel_weight, cpi_weight,
                                         base_month, base_year, labour_base_value, fuel_base_value, cpi_base_value, modified_at
                                  FROM escalation_parameters
@@ -28,8 +39,16 @@ namespace KubaPC.Services.Services.Logic
             return await _dataAccess.QuerySingleOrDefaultAsync<EscalationParametersResponse>(sql, new { ContractId = contractId });
         }
 
-        public async Task<OperationResult> Save(SaveEscalationParametersRequest request, Guid actor)
+        public async Task<OperationResult> Save(SaveEscalationParametersRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckContract(caller, request.ContractId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid actor = caller.AccountId;
             const string contractSql = @"SELECT count(*) FROM contracts WHERE id = @ContractId AND is_active";
             long contractCount = await _dataAccess.QuerySingleOrDefaultAsync<long>(contractSql, new { request.ContractId });
 

@@ -1,6 +1,8 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.Contracts.Requests;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -19,13 +21,14 @@ namespace KubaPC.API.Endpoints.Contracts
         {
             Get("/contracts/dropdown");
             AuthSchemes(JwtBearerDefaults.AuthenticationScheme);
+            Policies("Reader");
         }
 
         public override async Task HandleAsync(ContractDropDownRequest request, CancellationToken ct)
         {
             try
             {
-                await Send.OkAsync(await contractService.SelectDropDown(request.OperatorId), cancellation: ct);
+                await Send.OkAsync(await contractService.SelectDropDown(request.OperatorId, CallerReader.Read(User)), cancellation: ct);
             }
             catch (Exception exception)
             {

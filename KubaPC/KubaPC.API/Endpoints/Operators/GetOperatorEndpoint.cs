@@ -1,6 +1,8 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Operators.Requests;
 using KubaPC.Models.Contracts.Operators.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -26,7 +28,7 @@ namespace KubaPC.API.Endpoints.Operators
         {
             try
             {
-                OperatorListResponse? response = await operatorService.SelectOperator(request.Id);
+                OperatorListResponse? response = await operatorService.SelectOperator(request.Id, CallerReader.Read(User));
 
                 if (response is null)
                 {

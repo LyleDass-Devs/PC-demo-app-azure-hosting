@@ -1,7 +1,9 @@
 using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.ContractRates.Requests;
 using KubaPC.Models.Contracts.ContractRates.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -27,7 +29,7 @@ namespace KubaPC.API.Endpoints.ContractRates
         {
             try
             {
-                await Send.OkAsync(await contractRateService.SelectPagedRates(request), cancellation: ct);
+                await Send.OkAsync(await contractRateService.SelectPagedRates(request, CallerReader.Read(User)), cancellation: ct);
             }
             catch (Exception exception)
             {

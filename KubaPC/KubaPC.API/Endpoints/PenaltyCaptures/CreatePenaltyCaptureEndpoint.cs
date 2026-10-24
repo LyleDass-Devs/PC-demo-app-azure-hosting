@@ -1,4 +1,5 @@
-﻿using FastEndpoints;
+using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.PenaltyCaptures.Requests;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
@@ -29,13 +30,19 @@ namespace KubaPC.API.Endpoints.PenaltyCaptures
         {
             try
             {
-                Guid actor = Guid.Parse(User.FindFirst("UserId")!.Value);
+                Caller caller = CallerReader.Read(User);
                 string capturedByRole = User.IsInRole(MONITOR_ROLE) ? MONITOR_ROLE : OPERATOR_STAFF_ROLE;
 
-                CreateResult result = await penaltyCaptureService.CreateCapture(request, actor, capturedByRole);
+                CreateResult result = await penaltyCaptureService.CreateCapture(request, caller, capturedByRole);
 
                 if (!result.IsSuccess)
                 {
+                if (result.IsForbidden)
+                {
+                    await Send.ForbiddenAsync(ct);
+                    return;
+                }
+
                     AddError(result.Error!);
                     await Send.ErrorsAsync(409, ct);
                     return;

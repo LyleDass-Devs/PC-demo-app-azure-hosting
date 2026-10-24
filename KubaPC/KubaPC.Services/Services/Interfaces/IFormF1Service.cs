@@ -7,10 +7,10 @@ namespace KubaPC.Services.Services.Interfaces
 {
     public interface IFormF1Service
     {
-        Task<PagedResponse<FormF1RecordResponse>> SelectPaged(FormF1ListRequest request, Guid actor);
+        Task<PagedResponse<FormF1RecordResponse>> SelectPaged(FormF1ListRequest request, Caller caller);
         Task<FormF1LookupsResponse> SelectLookups();
-        Task<CreateResult> Create(CreateFormF1RecordRequest request, Guid actor, string capturedByRole);
-        Task<OperationResult> Update(UpdateFormF1RecordRequest request, Guid actor);
-        Task<OperationResult> Delete(DeleteFormF1RecordRequest request, Guid actor);
+        Task<CreateResult> Create(CreateFormF1RecordRequest request, Caller caller, string capturedByRole);
+        Task<OperationResult> Update(UpdateFormF1RecordRequest request, Caller caller);
+        Task<OperationResult> Delete(DeleteFormF1RecordRequest request, Caller caller);
     }
 }

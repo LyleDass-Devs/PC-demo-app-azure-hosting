@@ -1,6 +1,8 @@
 using FastEndpoints;
+using KubaPC.API.Security;
 using KubaPC.Models.Contracts.IncomeFields.Requests;
 using KubaPC.Models.Contracts.IncomeFields.Responses;
+using KubaPC.Models.Internal;
 using KubaPC.Services.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -26,7 +28,7 @@ namespace KubaPC.API.Endpoints.IncomeFields
         {
             try
             {
-                IncomeFieldsResponse? response = await incomeFieldService.SelectByContract(request.ContractId);
+                IncomeFieldsResponse? response = await incomeFieldService.SelectByContract(request.ContractId, CallerReader.Read(User));
                 if (response is null)
                 {
                     await Send.NoContentAsync(ct);

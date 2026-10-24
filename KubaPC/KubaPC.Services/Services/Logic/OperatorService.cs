@@ -1,9 +1,10 @@
-﻿using Dapper;
+using Dapper;
 using KubaPC.Models.Contracts.Common.Responses;
 using KubaPC.Models.Contracts.Operators.Requests;
 using KubaPC.Models.Contracts.Operators.Responses;
 using KubaPC.Models.Internal;
 using KubaPC.Services.Data;
+using KubaPC.Services.Security;
 using KubaPC.Services.Services.Interfaces;
 using System.Data;
 
@@ -18,11 +19,14 @@ namespace KubaPC.Services.Services.Logic
             ["createdAt"] = "o.created_at"
         };
 
-        public OperatorService(INpgsqlDataAccess dataAccess) : base(dataAccess)
+        private readonly IOperatorAccessService access;
+
+        public OperatorService(INpgsqlDataAccess dataAccess, IOperatorAccessService access) : base(dataAccess)
         {
+            this.access = access;
         }
 
-        public async Task<PagedResponse<OperatorListResponse>> SelectPagedOperatorList(OperatorListRequest request)
+        public async Task<PagedResponse<OperatorListResponse>> SelectPagedOperatorList(OperatorListRequest request, Caller caller)
         {
             string sortColumn = SORTABLE_COLUMNS.TryGetValue(request.SortBy ?? string.Empty, out string? mappedColumn) ? mappedColumn : "o.operator_name";
             string sortDirection = request.SortDescending ? "DESC" : "ASC";
@@ -34,10 +38,12 @@ namespace KubaPC.Services.Services.Logic
                             FROM operators o
                             WHERE (@Search IS NULL OR o.operator_name ILIKE @SearchPattern OR o.id_societe ILIKE @SearchPattern)
                               AND (@IsActive IS NULL OR o.is_active = @IsActive)
+                              {OperatorScope.ForOperatorColumn("o.id")}
                             ORDER BY {sortColumn} {sortDirection}
                             LIMIT @PageSize OFFSET @Offset";
 
             DynamicParameters parameters = new();
+            OperatorScope.AddParameters(parameters, caller);
             parameters.Add("Search", request.Search, DbType.String);
             parameters.Add("SearchPattern", $"%{request.Search}%", DbType.String);
             parameters.Add("IsActive", request.IsActive, DbType.Boolean);
@@ -67,18 +73,29 @@ namespace KubaPC.Services.Services.Logic
             };
         }
 
-        public async Task<List<DropDownResponse>> SelectDropDown()
+        public async Task<List<DropDownResponse>> SelectDropDown(Caller caller)
         {
-            const string sql = @"SELECT id, operator_name AS value
-                                 FROM operators
-                                 WHERE is_active
-                                 ORDER BY operator_name";
+            string sql = $@"SELECT o.id, o.operator_name AS value
+                            FROM operators o
+                            WHERE o.is_active
+                            {OperatorScope.ForOperatorColumn("o.id")}
+                            ORDER BY o.operator_name";
 
-            return await _dataAccess.QueryAsync<DropDownResponse>(sql, new { });
+            DynamicParameters parameters = new();
+            OperatorScope.AddParameters(parameters, caller);
+
+            return await _dataAccess.QueryAsync<DropDownResponse>(sql, parameters);
         }
 
-        public async Task<OperatorListResponse?> SelectOperator(Guid operatorId)
+        public async Task<OperatorListResponse?> SelectOperator(Guid operatorId, Caller caller)
         {
+            OperationResult allowed = await access.CheckOperator(caller, operatorId);
+
+            if (!allowed.IsSuccess)
+            {
+                return null;
+            }
+
             const string sql = @"SELECT o.id, o.id_societe, o.operator_name, o.is_active, o.created_at,
                                         (SELECT count(*) FROM vehicles v WHERE v.operator_id = o.id AND v.is_active) AS vehicle_count,
                                         (SELECT count(*) FROM contracts c WHERE c.operator_id = o.id AND c.is_active) AS contract_count,
@@ -123,8 +140,16 @@ namespace KubaPC.Services.Services.Logic
             return CreateResult.Success(id);
         }
 
-        public async Task<OperationResult> UpdateOperator(UpdateOperatorRequest request, Guid modifiedBy)
+        public async Task<OperationResult> UpdateOperator(UpdateOperatorRequest request, Caller caller)
         {
+            OperationResult allowed = await access.CheckOperator(caller, request.Id);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             string idSociete = request.IdSociete.Trim();
 
             if (await IsIdSocieteTaken(idSociete, request.Id))
@@ -152,8 +177,16 @@ namespace KubaPC.Services.Services.Logic
                 : OperationResult.Success();
         }
 
-        public async Task<OperationResult> DeactivateOperator(Guid operatorId, Guid modifiedBy)
+        public async Task<OperationResult> DeactivateOperator(Guid operatorId, Caller caller)
         {
+            OperationResult allowed = await access.CheckOperator(caller, operatorId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string sql = @"UPDATE operators
                                  SET is_active = FALSE, modified_at = now(), modified_by = @ModifiedBy
                                  WHERE id = @OperatorId AND is_active";
@@ -165,8 +198,16 @@ namespace KubaPC.Services.Services.Logic
                 : OperationResult.Success();
         }
 
-        public async Task<OperationResult> ReactivateOperator(Guid operatorId, Guid modifiedBy)
+        public async Task<OperationResult> ReactivateOperator(Guid operatorId, Caller caller)
         {
+            OperationResult allowed = await access.CheckOperator(caller, operatorId);
+
+            if (!allowed.IsSuccess)
+            {
+                return allowed;
+            }
+
+            Guid modifiedBy = caller.AccountId;
             const string codeSql = @"SELECT id_societe FROM operators WHERE id = @OperatorId AND NOT is_active";
             string? idSociete = await _dataAccess.QuerySingleOrDefaultAsync<string>(codeSql, new { OperatorId = operatorId });
 
