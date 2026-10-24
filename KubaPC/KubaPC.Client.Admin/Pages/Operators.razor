@@ -1,4 +1,4 @@
-﻿@page "/operators"
+@page "/operators"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SuperAdmin,Admin")]
 @inject IOperatorClientService OperatorClient
 @inject INotificationService Notifications
@@ -20,7 +20,10 @@
             <button type="button" aria-pressed="@(isActive ? "false" : "true")" @onclick="() => SetActive(false)">Inactive</button>
         </div>
         <span class="toolbar__count">@countLabel</span>
-        <KubaButton Text="New operator" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
+        @if (canCreate)
+        {
+            <KubaButton Text="New operator" Icon="@KubaIcons.Regular.Plus" Small="true" OnClick="() => drawer?.OpenCreate()" />
+        }
     </div>
 
     @if (!isActive)
@@ -64,7 +67,7 @@
                 </TemplateColumn>
             </Columns>
             <NoRecordsContent>
-                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No operators yet" : $"Nothing matches \"{search}\"")" Message="@(string.IsNullOrWhiteSpace(search) ? "Add the first bus company with New operator." : null)" Icon="@KubaIcons.Light.Bus">
+                <EmptyTile Title="@(string.IsNullOrWhiteSpace(search) ? "No operators yet" : $"Nothing matches \"{search}\"")" Message="@(string.IsNullOrWhiteSpace(search) && canCreate ? "Add the first bus company with New operator." : null)" Icon="@KubaIcons.Light.Bus">
                     @if (!string.IsNullOrWhiteSpace(search)) { <KubaButton Text="Clear search" Small="true" Variant="KubaButton.KubaButtonVariant.Ghost" OnClick="ClearSearch" /> }
                 </EmptyTile>
             </NoRecordsContent>
@@ -122,12 +125,22 @@
     private bool isActive = true;
     private bool loading;
     private string countLabel = string.Empty;
+    private bool canCreate;
     private List<OperatorListResponse> phoneRows = new();
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationState { get; set; }
     private System.Threading.Timer? debounce;
 
     protected override async Task OnInitializedAsync()
     {
         Header.Set("Operators");
+
+        if (AuthenticationState is not null)
+        {
+            AuthenticationState state = await AuthenticationState;
+            canCreate = state.User.IsInRole("SuperAdmin");
+        }
+
         await LoadPhoneRows();
     }
 
