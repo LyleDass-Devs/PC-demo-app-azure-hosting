@@ -163,12 +163,13 @@ namespace KubaPC.Services.Services.Logic
                               AND (@IsUnscoped OR (NOT EXISTS (SELECT 1 FROM account_roles sar
                                                                 JOIN roles sr ON sr.id = sar.role_id
                                                                 WHERE sar.account_id = a.id AND sr.role_name = @SuperAdminRole)
-                                                   AND (NOT EXISTS (SELECT 1 FROM account_operators held
-                                                                    JOIN operators ho ON ho.id = held.operator_id AND ho.is_active
-                                                                    WHERE held.account_id = a.id AND held.is_active)
+                                                   AND NOT EXISTS (SELECT 1 FROM account_operators held
+                                                                   WHERE held.account_id = a.id AND held.is_active
+                                                                     AND NOT EXISTS (SELECT 1 FROM account_operators mine
+                                                                                     WHERE mine.account_id = @Actor AND mine.is_active
+                                                                                       AND mine.operator_id = held.operator_id))
+                                                   AND (a.created_by = @Actor
                                                         OR EXISTS (SELECT 1 FROM account_operators held
-                                                                   JOIN account_operators mine ON mine.operator_id = held.operator_id
-                                                                                               AND mine.account_id = @Actor AND mine.is_active
                                                                    WHERE held.account_id = a.id AND held.is_active))))
                             ORDER BY {sortColumn} {sortDirection}
                             LIMIT @PageSize OFFSET @Offset";
@@ -378,12 +379,6 @@ namespace KubaPC.Services.Services.Logic
                 {
                     return AccountOperationResult.Forbidden("You can only grant operators your own account holds.");
                 }
-
-                List<Guid> outsideCallerScope = (await SelectGrantedOperatorIds(request.AccountId))
-                    .Where(operatorId => !heldByCaller.Contains(operatorId))
-                    .ToList();
-
-                operatorIds = operatorIds.Union(outsideCallerScope).ToList();
             }
 
             const string knownSql = @"SELECT count(*) FROM operators WHERE id = ANY(@OperatorIds) AND is_active";
@@ -613,9 +608,9 @@ namespace KubaPC.Services.Services.Logic
                 return AccountOperationResult.Forbidden(SUPER_ADMIN_ONLY);
             }
 
-            if (!await SharesOperator(caller.AccountId, targetAccountId))
+            if (!await IsWithinCallerScope(caller.AccountId, targetAccountId))
             {
-                return AccountOperationResult.Forbidden("That account belongs to an operator your account does not hold.");
+                return AccountOperationResult.Forbidden("That account holds an operator your account does not, or was not created by you.");
             }
 
             return AccountOperationResult.Success();
@@ -633,15 +628,17 @@ namespace KubaPC.Services.Services.Logic
             return count > 0;
         }
 
-        private async Task<bool> SharesOperator(Guid callerAccountId, Guid targetAccountId)
+        private async Task<bool> IsWithinCallerScope(Guid callerAccountId, Guid targetAccountId)
         {
             const string sql = @"SELECT NOT EXISTS (SELECT 1 FROM account_operators held
-                                                    JOIN operators o ON o.id = held.operator_id AND o.is_active
-                                                    WHERE held.account_id = @TargetAccountId AND held.is_active)
-                                     OR EXISTS (SELECT 1 FROM account_operators held
-                                                JOIN account_operators mine ON mine.operator_id = held.operator_id
-                                                                            AND mine.account_id = @CallerAccountId AND mine.is_active
-                                                WHERE held.account_id = @TargetAccountId AND held.is_active)";
+                                                    WHERE held.account_id = @TargetAccountId AND held.is_active
+                                                      AND NOT EXISTS (SELECT 1 FROM account_operators mine
+                                                                      WHERE mine.account_id = @CallerAccountId AND mine.is_active
+                                                                        AND mine.operator_id = held.operator_id))
+                                        AND (EXISTS (SELECT 1 FROM account_operators held
+                                                     WHERE held.account_id = @TargetAccountId AND held.is_active)
+                                             OR EXISTS (SELECT 1 FROM accounts a
+                                                        WHERE a.id = @TargetAccountId AND a.created_by = @CallerAccountId))";
 
             return await _dataAccess.QuerySingleOrDefaultAsync<bool>(sql, new { CallerAccountId = callerAccountId, TargetAccountId = targetAccountId });
         }
