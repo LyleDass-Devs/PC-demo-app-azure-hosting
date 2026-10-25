@@ -1,0 +1,43 @@
+# Loads a data dump into one environment's database. Started by hand, never by a
+# commit: run upload-data.sh <env> first, then start this pipeline and pick the
+# environment. It runs on the agent VM as the pipeline identity, which owns the
+# tables; the prod run waits for approval on the kubapc-prod-database environment
+# like every other change to that database.
+trigger: none
+pr: none
+
+parameters:
+  - name: environment
+    displayName: Environment to load data into
+    type: string
+    default: test
+    values:
+      - test
+      - prod
+
+variables:
+  - name: agentPool
+    value: vnet-agents
+
+stages:
+  - stage: LoadData
+    displayName: ${{ format('Load data into {0}', parameters.environment) }}
+    jobs:
+      - deployment: Load
+        displayName: Download the dump, apply it, delete it
+        pool:
+          name: $(agentPool)
+        environment: ${{ format('kubapc-{0}-database', parameters.environment) }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: Load data over the private endpoint
+                  inputs:
+                    azureSubscription: ${{ format('sc-kubapc-{0}', parameters.environment) }}
+                    scriptType: bash
+                    scriptLocation: scriptPath
+                    scriptPath: azure/scripts/load-data.sh
+                    arguments: ${{ format('rg-kubapc-{0} {0}', parameters.environment) }}

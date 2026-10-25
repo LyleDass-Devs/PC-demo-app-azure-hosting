@@ -1,5 +1,10 @@
+@description('Azure region for the workspace and Application Insights.')
 param location string
+
+@description('Short name used in every resource name, for example kubapc-test.')
 param namePrefix string
+
+@description('Tags applied to every resource.')
 param tags object
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {

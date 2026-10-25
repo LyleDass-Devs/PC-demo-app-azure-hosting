@@ -1,0 +1,10 @@
+# Files that run or are parsed on Linux keep LF endings on every checkout, including
+# Windows with core.autocrlf=true: a bash script with CRLF endings fails in WSL and on
+# the pipeline agent with "$'\r': command not found".
+*.sh text eol=lf
+*.bicep text eol=lf
+*.bicepparam text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sql text eol=lf
+*.md text eol=lf

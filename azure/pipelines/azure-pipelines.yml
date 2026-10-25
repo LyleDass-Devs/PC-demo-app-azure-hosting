@@ -8,16 +8,19 @@ pr:
     include:
       - main
 
+parameters:
+  # During the week the pipeline runs many times against test; prod must not sit waiting
+  # for approval on each run. On the interview morning, start the run manually with this ticked.
+  - name: deployProd
+    displayName: Deploy prod
+    type: boolean
+    default: false
+
 variables:
-  - group: kubapc-dev-secrets
-  - name: azureServiceConnection
-    value: sc-kubapc-dev
-  - name: resourceGroup
-    value: rg-kubapc-dev
+  - name: agentPool
+    value: vnet-agents
   - name: location
     value: southafricanorth
-  - name: agentPool
-    value: wsl-agents
   - name: appSolution
     value: KubaPC/KubaPC.slnx
   - name: apiProject
@@ -34,32 +37,66 @@ stages:
     displayName: Validate infrastructure
     jobs:
       - job: Lint
-        displayName: Compile, lint and preview the Bicep
+        displayName: Compile and lint the Bicep
         pool:
           name: $(agentPool)
         steps:
           - checkout: self
           - script: |
               set -euo pipefail
-              az bicep build --file azure/infra/main.bicep --stdout > /dev/null
-              az bicep lint --file azure/infra/main.bicep
-              echo "Bicep compiles and lints clean."
+              for template in azure/infra/main.bicep azure/infra/shared/main.bicep; do
+                az bicep build --file "$template" --stdout > /dev/null
+                az bicep lint --file "$template"
+                echo "Compiles and lints clean: $template"
+              done
             displayName: Compile and lint
+      - job: WhatIfTest
+        displayName: Preview changes to test
+        dependsOn: Lint
+        pool:
+          name: $(agentPool)
+        variables:
+          - group: kubapc-test-secrets
+        steps:
+          - checkout: self
           - task: AzureCLI@2
-            displayName: What-if against the resource group
+            displayName: What-if against rg-kubapc-test
             inputs:
-              azureSubscription: $(azureServiceConnection)
+              azureSubscription: sc-kubapc-test
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
-                export POSTGRES_ADMIN_PASSWORD='$(POSTGRES_ADMIN_PASSWORD)'
-                export APP_DB_PASSWORD='$(APP_DB_PASSWORD)'
                 export JWT_SECRET='$(JWT_SECRET)'
                 az deployment group what-if \
-                  --resource-group $(resourceGroup) \
+                  --resource-group rg-kubapc-test \
                   --template-file azure/infra/main.bicep \
-                  --parameters azure/infra/dev.bicepparam \
+                  --parameters azure/infra/test.bicepparam \
+                  --result-format FullResourcePayloads
+      - job: WhatIfProd
+        displayName: Preview changes to prod
+        dependsOn: Lint
+        # A pull request must never touch the prod identity or the prod variable group.
+        condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        pool:
+          name: $(agentPool)
+        variables:
+          - group: kubapc-prod-secrets
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: What-if against rg-kubapc-prod
+            inputs:
+              azureSubscription: sc-kubapc-prod
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                export JWT_SECRET='$(JWT_SECRET)'
+                az deployment group what-if \
+                  --resource-group rg-kubapc-prod \
+                  --template-file azure/infra/main.bicep \
+                  --parameters azure/infra/prod.bicepparam \
                   --result-format FullResourcePayloads
 
   - stage: Build
@@ -107,124 +144,25 @@ stages:
           - publish: $(Build.ArtifactStagingDirectory)/sql
             artifact: sql
 
-  - stage: DeployInfrastructure
-    displayName: Deploy infrastructure
-    dependsOn: Build
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    jobs:
-      - deployment: Infrastructure
-        displayName: Bicep deployment
-        pool:
-          name: $(agentPool)
-        environment: kubapc-dev-infrastructure
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                - task: AzureCLI@2
-                  displayName: Deploy with Bicep
-                  inputs:
-                    azureSubscription: $(azureServiceConnection)
-                    scriptType: bash
-                    scriptLocation: inlineScript
-                    inlineScript: |
-                      set -euo pipefail
-                      export POSTGRES_ADMIN_PASSWORD='$(POSTGRES_ADMIN_PASSWORD)'
-                      export APP_DB_PASSWORD='$(APP_DB_PASSWORD)'
-                      export JWT_SECRET='$(JWT_SECRET)'
-                      az deployment group create \
-                        --name "kubapc-$(Build.BuildId)" \
-                        --resource-group $(resourceGroup) \
-                        --template-file azure/infra/main.bicep \
-                        --parameters azure/infra/dev.bicepparam \
-                        --output table
+  # Test flows through without approval. Its three stages are Test_Infrastructure,
+  # Test_Database and Test_Application.
+  - template: templates/deploy-environment.yml
+    parameters:
+      environmentName: test
+      serviceConnection: sc-kubapc-test
+      resourceGroup: rg-kubapc-test
+      parameterFile: azure/infra/test.bicepparam
+      variableGroup: kubapc-test-secrets
+      dependsOn: Build
 
-  - stage: MigrateDatabase
-    displayName: Apply database scripts
-    dependsOn: DeployInfrastructure
-    jobs:
-      - deployment: Migrate
-        displayName: Run the SQL scripts
-        pool:
-          name: $(agentPool)
-        environment: kubapc-dev-database
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                - download: current
-                  artifact: sql
-                - task: AzureCLI@2
-                  displayName: Open the break-glass window, migrate, close it
-                  inputs:
-                    azureSubscription: $(azureServiceConnection)
-                    scriptType: bash
-                    scriptLocation: scriptPath
-                    scriptPath: azure/scripts/migrate.sh
-                    arguments: $(resourceGroup) $(Pipeline.Workspace)/sql
-                  env:
-                    POSTGRES_ADMIN_PASSWORD: $(POSTGRES_ADMIN_PASSWORD)
-                    APP_DB_PASSWORD: $(APP_DB_PASSWORD)
-
-  - stage: DeployApplication
-    displayName: Deploy the API and the web client
-    dependsOn: MigrateDatabase
-    jobs:
-      - deployment: Api
-        displayName: API to App Service
-        pool:
-          name: $(agentPool)
-        environment: kubapc-dev-application
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                - download: current
-                  artifact: api
-                - task: AzureCLI@2
-                  displayName: Read deployment outputs
-                  name: outputs
-                  inputs:
-                    azureSubscription: $(azureServiceConnection)
-                    scriptType: bash
-                    scriptLocation: inlineScript
-                    inlineScript: |
-                      set -euo pipefail
-                      apiName=$(az deployment group show --resource-group $(resourceGroup) --name "kubapc-$(Build.BuildId)" --query properties.outputs.apiName.value --output tsv)
-                      apiUrl=$(az deployment group show --resource-group $(resourceGroup) --name "kubapc-$(Build.BuildId)" --query properties.outputs.apiUrl.value --output tsv)
-                      echo "##vso[task.setvariable variable=apiName;isOutput=true]$apiName"
-                      echo "##vso[task.setvariable variable=apiUrl;isOutput=true]$apiUrl"
-                - task: AzureWebApp@1
-                  displayName: Deploy the zip
-                  inputs:
-                    azureSubscription: $(azureServiceConnection)
-                    appType: webAppLinux
-                    appName: $(outputs.apiName)
-                    package: $(Pipeline.Workspace)/api/api.zip
-                    runtimeStack: DOTNETCORE|10.0
-                - script: bash azure/scripts/smoke.sh "$(outputs.apiUrl)"
-                  displayName: Smoke test the API
-      - deployment: Web
-        displayName: Admin client to Static Web Apps
-        dependsOn: Api
-        pool:
-          name: $(agentPool)
-        environment: kubapc-dev-application
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                - download: current
-                  artifact: admin
-                - task: AzureCLI@2
-                  displayName: Point the client at the API and upload
-                  inputs:
-                    azureSubscription: $(azureServiceConnection)
-                    scriptType: bash
-                    scriptLocation: scriptPath
-                    scriptPath: azure/scripts/deploy-web.sh
-                    arguments: $(resourceGroup) "kubapc-$(Build.BuildId)" $(Pipeline.Workspace)/admin
+  # Prod only exists in the run when the box is ticked; each of its three
+  # Azure DevOps environments carries an approval check.
+  - ${{ if eq(parameters.deployProd, true) }}:
+      - template: templates/deploy-environment.yml
+        parameters:
+          environmentName: prod
+          serviceConnection: sc-kubapc-prod
+          resourceGroup: rg-kubapc-prod
+          parameterFile: azure/infra/prod.bicepparam
+          variableGroup: kubapc-prod-secrets
+          dependsOn: Test_Application

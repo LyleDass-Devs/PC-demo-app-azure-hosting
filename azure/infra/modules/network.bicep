@@ -1,10 +1,31 @@
+@description('Azure region for the network resources.')
 param location string
+
+@description('Short name used in every resource name, for example kubapc-test.')
 param namePrefix string
+
+@description('Tags applied to every resource.')
 param tags object
+
+@description('Address space of this environment\'s virtual network.')
+param vnetAddressPrefix string
+
+@description('Address range of the subnet the App Service plan is integrated into.')
+param appSubnetPrefix string
+
+@description('Address range of the subnet that holds the private endpoints.')
+param privateEndpointSubnetPrefix string
+
+@description('Resource group that holds the hub virtual network and the private DNS zones.')
+param sharedResourceGroupName string
+
+@description('Name of the hub virtual network this environment peers with.')
+param hubVnetName string
 
 var vnetName = 'vnet-${namePrefix}'
 var appSubnetName = 'snet-app'
 var privateEndpointSubnetName = 'snet-private-endpoints'
+var hubVnetId = resourceId(sharedResourceGroupName, 'Microsoft.Network/virtualNetworks', hubVnetName)
 
 resource privateEndpointNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: 'nsg-${namePrefix}-private-endpoints'
@@ -49,14 +70,14 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   properties: {
     addressSpace: {
       addressPrefixes: [
-        '10.20.0.0/16'
+        vnetAddressPrefix
       ]
     }
     subnets: [
       {
         name: appSubnetName
         properties: {
-          addressPrefix: '10.20.1.0/24'
+          addressPrefix: appSubnetPrefix
           delegations: [
             {
               name: 'appservice'
@@ -70,7 +91,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
       {
         name: privateEndpointSubnetName
         properties: {
-          addressPrefix: '10.20.2.0/24'
+          addressPrefix: privateEndpointSubnetPrefix
           privateEndpointNetworkPolicies: 'Enabled'
           networkSecurityGroup: {
             id: privateEndpointNsg.id
@@ -81,44 +102,41 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   }
 }
 
-resource postgresDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
-  name: 'privatelink.postgres.database.azure.com'
-  location: 'global'
-  tags: tags
-}
-
-resource keyVaultDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
-  name: 'privatelink.vaultcore.azure.net'
-  location: 'global'
-  tags: tags
-}
-
-resource postgresDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
-  parent: postgresDnsZone
-  name: 'link-${vnetName}'
-  location: 'global'
+// The hub side of the peering and the DNS zone links live in the shared resource group,
+// so they are created by modules deployed into that group rather than this one.
+resource spokeToHubPeering 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-05-01' = {
+  parent: vnet
+  name: 'peer-to-hub'
   properties: {
-    virtualNetwork: {
-      id: vnet.id
+    remoteVirtualNetwork: {
+      id: hubVnetId
     }
-    registrationEnabled: false
+    allowVirtualNetworkAccess: true
+    allowForwardedTraffic: false
+    allowGatewayTransit: false
+    useRemoteGateways: false
   }
 }
 
-resource keyVaultDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
-  parent: keyVaultDnsZone
-  name: 'link-${vnetName}'
-  location: 'global'
-  properties: {
-    virtualNetwork: {
-      id: vnet.id
-    }
-    registrationEnabled: false
+module hubToSpokePeering 'hub-peering.bicep' = {
+  name: 'hub-peering-${vnetName}'
+  scope: resourceGroup(sharedResourceGroupName)
+  params: {
+    hubVnetName: hubVnetName
+    spokeVnetName: vnetName
+    spokeVnetId: vnet.id
+  }
+}
+
+module privateDnsLinks 'private-dns-links.bicep' = {
+  name: 'private-dns-links-${vnetName}'
+  scope: resourceGroup(sharedResourceGroupName)
+  params: {
+    spokeVnetName: vnetName
+    spokeVnetId: vnet.id
   }
 }
 
 output vnetId string = vnet.id
 output appSubnetId string = '${vnet.id}/subnets/${appSubnetName}'
 output privateEndpointSubnetId string = '${vnet.id}/subnets/${privateEndpointSubnetName}'
-output postgresDnsZoneId string = postgresDnsZone.id
-output keyVaultDnsZoneId string = keyVaultDnsZone.id

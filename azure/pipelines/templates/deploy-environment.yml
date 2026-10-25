@@ -1,0 +1,147 @@
+# Deploys one environment in three stages: infrastructure (Bicep), database
+# (SQL scripts and Entra ID logins) and application (API zip and admin site).
+# azure-pipelines.yml calls this once for test and once for prod; the only
+# differences between the two are the parameters below. Approvals live on the
+# Azure DevOps environments (kubapc-<env>-infrastructure and so on), not here.
+parameters:
+  - name: environmentName
+    displayName: Environment name (test or prod)
+    type: string
+    values:
+      - test
+      - prod
+  - name: serviceConnection
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: parameterFile
+    type: string
+  - name: variableGroup
+    type: string
+  - name: dependsOn
+    displayName: Stage the infrastructure stage waits for
+    type: string
+
+stages:
+  # Stage names are Test_Infrastructure, Prod_Database and so on. The expression
+  # language has no capitalise function, so the two allowed values are mapped by hand.
+  - stage: ${{ replace(replace(parameters.environmentName, 'test', 'Test'), 'prod', 'Prod') }}_Infrastructure
+    displayName: ${{ format('Deploy {0} infrastructure', parameters.environmentName) }}
+    dependsOn: ${{ parameters.dependsOn }}
+    # Only main deploys. A pull request stops after Validate and Build; the two
+    # later stages depend on this one, so they are skipped with it.
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      - group: ${{ parameters.variableGroup }}
+    jobs:
+      - deployment: Infrastructure
+        displayName: Bicep deployment
+        pool:
+          name: $(agentPool)
+        environment: ${{ format('kubapc-{0}-infrastructure', parameters.environmentName) }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: Deploy with Bicep
+                  inputs:
+                    azureSubscription: ${{ parameters.serviceConnection }}
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      export JWT_SECRET='$(JWT_SECRET)'
+                      az deployment group create \
+                        --name "kubapc-$(Build.BuildId)" \
+                        --resource-group ${{ parameters.resourceGroup }} \
+                        --template-file azure/infra/main.bicep \
+                        --parameters ${{ parameters.parameterFile }} \
+                        --output table
+
+  - stage: ${{ replace(replace(parameters.environmentName, 'test', 'Test'), 'prod', 'Prod') }}_Database
+    displayName: ${{ format('Apply {0} database scripts', parameters.environmentName) }}
+    dependsOn: ${{ replace(replace(parameters.environmentName, 'test', 'Test'), 'prod', 'Prod') }}_Infrastructure
+    jobs:
+      - deployment: Migrate
+        displayName: Run the SQL scripts and grant logins
+        pool:
+          name: $(agentPool)
+        environment: ${{ format('kubapc-{0}-database', parameters.environmentName) }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - download: current
+                  artifact: sql
+                - task: AzureCLI@2
+                  displayName: Migrate over the private endpoint
+                  inputs:
+                    azureSubscription: ${{ parameters.serviceConnection }}
+                    scriptType: bash
+                    scriptLocation: scriptPath
+                    scriptPath: azure/scripts/migrate.sh
+                    arguments: ${{ parameters.resourceGroup }} $(Pipeline.Workspace)/sql ${{ parameters.environmentName }}
+
+  - stage: ${{ replace(replace(parameters.environmentName, 'test', 'Test'), 'prod', 'Prod') }}_Application
+    displayName: ${{ format('Deploy the {0} API and web client', parameters.environmentName) }}
+    dependsOn: ${{ replace(replace(parameters.environmentName, 'test', 'Test'), 'prod', 'Prod') }}_Database
+    jobs:
+      - deployment: Api
+        displayName: API to App Service
+        pool:
+          name: $(agentPool)
+        environment: ${{ format('kubapc-{0}-application', parameters.environmentName) }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - download: current
+                  artifact: api
+                - task: AzureCLI@2
+                  displayName: Read deployment outputs
+                  name: outputs
+                  inputs:
+                    azureSubscription: ${{ parameters.serviceConnection }}
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      apiName=$(az deployment group show --resource-group ${{ parameters.resourceGroup }} --name "kubapc-$(Build.BuildId)" --query properties.outputs.apiName.value --output tsv)
+                      apiUrl=$(az deployment group show --resource-group ${{ parameters.resourceGroup }} --name "kubapc-$(Build.BuildId)" --query properties.outputs.apiUrl.value --output tsv)
+                      echo "##vso[task.setvariable variable=apiName;isOutput=true]$apiName"
+                      echo "##vso[task.setvariable variable=apiUrl;isOutput=true]$apiUrl"
+                - task: AzureWebApp@1
+                  displayName: Deploy the zip
+                  inputs:
+                    azureSubscription: ${{ parameters.serviceConnection }}
+                    appType: webAppLinux
+                    appName: $(outputs.apiName)
+                    package: $(Pipeline.Workspace)/api/api.zip
+                    runtimeStack: DOTNETCORE|10.0
+                - script: bash azure/scripts/smoke.sh "$(outputs.apiUrl)"
+                  displayName: Smoke test the API
+      - deployment: Web
+        displayName: Admin client to Static Web Apps
+        dependsOn: Api
+        pool:
+          name: $(agentPool)
+        environment: ${{ format('kubapc-{0}-application', parameters.environmentName) }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - download: current
+                  artifact: admin
+                - task: AzureCLI@2
+                  displayName: Point the client at the API and upload
+                  inputs:
+                    azureSubscription: ${{ parameters.serviceConnection }}
+                    scriptType: bash
+                    scriptLocation: scriptPath
+                    scriptPath: azure/scripts/deploy-web.sh
+                    arguments: ${{ parameters.resourceGroup }} "kubapc-$(Build.BuildId)" $(Pipeline.Workspace)/admin

@@ -1,18 +1,38 @@
+@description('Azure region for the server.')
 param location string
+
+@description('Short name used in every resource name, for example kubapc-test.')
 param namePrefix string
+
+@description('Six-character suffix that keeps globally unique names from colliding.')
 param uniqueSuffix string
+
+@description('Tags applied to every resource.')
 param tags object
+
+@description('Resource id of the subnet that holds the private endpoint.')
 param privateEndpointSubnetId string
-param privateDnsZoneId string
+
+@description('Resource group that holds the shared private DNS zones.')
+param sharedResourceGroupName string
+
+@description('Resource id of the Log Analytics workspace that receives server logs.')
 param logAnalyticsId string
-param administratorLogin string
+
+@description('Name of the application database.')
 param databaseName string
 
-@secure()
-param administratorPassword string
+@description('Object id of the pipeline service principal that becomes the Entra ID administrator.')
+param pipelinePrincipalObjectId string
+
+@description('Login name the pipeline service principal uses on the server, for example sc-kubapc-test.')
+param pipelinePrincipalLoginName string
 
 var serverName = 'psql-${namePrefix}-${uniqueSuffix}'
+var privateDnsZoneId = resourceId(sharedResourceGroupName, 'Microsoft.Network/privateDnsZones', 'privatelink.postgres.database.azure.com')
 
+// Password login is off at the server, so no administrator password exists anywhere.
+// Everything that runs SQL signs in with an Entra ID token.
 resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: serverName
   location: location
@@ -23,8 +43,6 @@ resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   }
   properties: {
     version: '17'
-    administratorLogin: administratorLogin
-    administratorLoginPassword: administratorPassword
     storage: {
       storageSizeGB: 32
       autoGrow: 'Disabled'
@@ -40,8 +58,9 @@ resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
       publicNetworkAccess: 'Disabled'
     }
     authConfig: {
-      passwordAuth: 'Enabled'
-      activeDirectoryAuth: 'Disabled'
+      activeDirectoryAuth: 'Enabled'
+      passwordAuth: 'Disabled'
+      tenantId: subscription().tenantId
     }
   }
 }
@@ -55,6 +74,7 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-0
   }
 }
 
+// Server-level operations fail when they overlap, so the child resources below form a chain.
 resource requireSsl 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
   parent: server
   name: 'require_secure_transport'
@@ -76,6 +96,21 @@ resource allowedExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurat
   }
   dependsOn: [
     requireSsl
+  ]
+}
+
+// The login name is chosen here rather than taken from the app registration's display
+// name, which can exceed PostgreSQL's 63-character limit for role names.
+resource pipelineAdministrator 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2024-08-01' = {
+  parent: server
+  name: pipelinePrincipalObjectId
+  properties: {
+    principalName: pipelinePrincipalLoginName
+    principalType: 'ServicePrincipal'
+    tenantId: subscription().tenantId
+  }
+  dependsOn: [
+    allowedExtensions
   ]
 }
 

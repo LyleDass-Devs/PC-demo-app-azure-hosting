@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-apiUrl="${1:?api url, for example https://app-kubapc-dev-api-abc123.azurewebsites.net}"
+apiUrl="${1:?api url, for example https://app-kubapc-test-api-abc123.azurewebsites.net}"
 
 echo "Waiting for $apiUrl/health"
 for attempt in $(seq 1 30); do

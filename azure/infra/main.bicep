@@ -1,7 +1,10 @@
 targetScope = 'resourceGroup'
 
-@description('Short name used in every resource name, for example kubapc-dev.')
-param namePrefix string = 'kubapc-dev'
+@description('Short name used in every resource name, for example kubapc-test.')
+param namePrefix string
+
+@description('Environment this deployment belongs to, for example test or prod. Used for the environment tag.')
+param environmentName string
 
 @description('Azure region for everything except Static Web Apps.')
 param location string = resourceGroup().location
@@ -9,30 +12,37 @@ param location string = resourceGroup().location
 @description('Region for Static Web Apps, which is not offered in South Africa.')
 param staticWebAppLocation string = 'westeurope'
 
-@description('PostgreSQL administrator login.')
-param postgresAdministratorLogin string = 'kubapc_admin'
+@description('Address space of this environment\'s virtual network, for example 10.20.0.0/16.')
+param vnetAddressPrefix string
+
+@description('Address range of the subnet the App Service plan is integrated into, for example 10.20.1.0/24.')
+param appSubnetPrefix string
+
+@description('Address range of the subnet that holds the private endpoints, for example 10.20.2.0/24.')
+param privateEndpointSubnetPrefix string
+
+@description('Resource group that holds the hub virtual network and the private DNS zones.')
+param sharedResourceGroupName string = 'rg-kubapc-shared'
+
+@description('Name of the hub virtual network this environment peers with.')
+param hubVnetName string = 'vnet-kubapc-hub'
 
 @description('Name of the application database.')
 param databaseName string = 'kubapc'
 
-@description('Login the API uses. Created by the database scripts, password set by the migration step.')
-param applicationDatabaseLogin string = 'kubapc_app'
+@description('Object id of the pipeline service principal that becomes the PostgreSQL Entra ID administrator.')
+param pipelinePrincipalObjectId string
 
-@secure()
-@description('Password for the PostgreSQL administrator.')
-param postgresAdministratorPassword string
-
-@secure()
-@description('Password for the application login the API connects with.')
-param applicationDatabasePassword string
+@description('Login name the pipeline service principal uses on PostgreSQL, for example sc-kubapc-test.')
+param pipelinePrincipalLoginName string
 
 @secure()
 @description('At least 64 random bytes used to sign sign-in tokens.')
 param jwtSecret string
 
-param tags object = {
+var tags = {
   workload: 'kubapc'
-  environment: 'dev'
+  environment: environmentName
   owner: 'lyledass'
   purpose: 'demo'
 }
@@ -54,6 +64,11 @@ module network 'modules/network.bicep' = {
     location: location
     namePrefix: namePrefix
     tags: tags
+    vnetAddressPrefix: vnetAddressPrefix
+    appSubnetPrefix: appSubnetPrefix
+    privateEndpointSubnetPrefix: privateEndpointSubnetPrefix
+    sharedResourceGroupName: sharedResourceGroupName
+    hubVnetName: hubVnetName
   }
 }
 
@@ -65,11 +80,11 @@ module postgres 'modules/postgres.bicep' = {
     uniqueSuffix: uniqueSuffix
     tags: tags
     privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
-    privateDnsZoneId: network.outputs.postgresDnsZoneId
+    sharedResourceGroupName: sharedResourceGroupName
     logAnalyticsId: monitoring.outputs.logAnalyticsId
-    administratorLogin: postgresAdministratorLogin
-    administratorPassword: postgresAdministratorPassword
     databaseName: databaseName
+    pipelinePrincipalObjectId: pipelinePrincipalObjectId
+    pipelinePrincipalLoginName: pipelinePrincipalLoginName
   }
 }
 
@@ -82,8 +97,6 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
   }
 }
 
-var connectionString = 'Host=${postgres.outputs.serverFqdn};Port=5432;Database=${databaseName};Username=${applicationDatabaseLogin};Password=${applicationDatabasePassword};SSL Mode=Require;Trust Server Certificate=false'
-
 module keyVault 'modules/keyvault.bicep' = {
   name: 'key-vault'
   params: {
@@ -92,9 +105,8 @@ module keyVault 'modules/keyvault.bicep' = {
     uniqueSuffix: uniqueSuffix
     tags: tags
     privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
-    privateDnsZoneId: network.outputs.keyVaultDnsZoneId
+    sharedResourceGroupName: sharedResourceGroupName
     logAnalyticsId: monitoring.outputs.logAnalyticsId
-    databaseConnectionString: connectionString
     jwtSecret: jwtSecret
   }
 }
@@ -108,8 +120,9 @@ module appService 'modules/appservice.bicep' = {
     tags: tags
     appSubnetId: network.outputs.appSubnetId
     keyVaultName: keyVault.outputs.keyVaultName
-    connectionStringSecretUri: keyVault.outputs.connectionStringSecretUri
     jwtSecretUri: keyVault.outputs.jwtSecretUri
+    postgresServerFqdn: postgres.outputs.serverFqdn
+    databaseName: postgres.outputs.databaseName
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     logAnalyticsId: monitoring.outputs.logAnalyticsId
     clientOrigin: 'https://${staticWebApp.outputs.adminHostname}'
@@ -118,6 +131,7 @@ module appService 'modules/appservice.bicep' = {
 
 output apiName string = appService.outputs.apiName
 output apiUrl string = 'https://${appService.outputs.apiHostname}'
+output apiPrincipalId string = appService.outputs.apiPrincipalId
 output adminSiteName string = staticWebApp.outputs.adminSiteName
 output adminUrl string = 'https://${staticWebApp.outputs.adminHostname}'
 output postgresServerName string = postgres.outputs.serverName

@@ -1,18 +1,46 @@
+@description('Azure region for the plan and the API.')
 param location string
+
+@description('Short name used in every resource name, for example kubapc-test.')
 param namePrefix string
+
+@description('Six-character suffix that keeps globally unique names from colliding.')
 param uniqueSuffix string
+
+@description('Tags applied to every resource.')
 param tags object
+
+@description('Resource id of the delegated subnet the App Service plan is integrated into.')
 param appSubnetId string
+
+@description('Name of the Key Vault that holds the token-signing key.')
 param keyVaultName string
-param connectionStringSecretUri string
+
+@description('Secret identifier of the token-signing key in Key Vault.')
 param jwtSecretUri string
+
+@description('Fully qualified host name of the PostgreSQL server.')
+param postgresServerFqdn string
+
+@description('Name of the application database.')
+param databaseName string
+
+@description('Application Insights connection string.')
 param appInsightsConnectionString string
+
+@description('Resource id of the Log Analytics workspace that receives the API logs.')
 param logAnalyticsId string
+
+@description('Origin of the admin site, allowed by CORS.')
 param clientOrigin string
 
 var planName = 'asp-${namePrefix}'
 var apiName = 'app-${namePrefix}-api-${uniqueSuffix}'
 var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+
+// The API signs in to PostgreSQL as its own managed identity, so its user name is its own
+// name and the connection string holds no secret. That is why it is a plain setting.
+var databaseConnectionString = 'Host=${postgresServerFqdn};Port=5432;Database=${databaseName};Username=${apiName};SSL Mode=Require;Trust Server Certificate=false'
 
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: planName
@@ -59,7 +87,8 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
         { name: 'ASPNETCORE_FORWARDEDHEADERS_ENABLED', value: 'true' }
         { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }
-        { name: 'ConnectionStrings__KubaPCDatabase', value: '@Microsoft.KeyVault(SecretUri=${connectionStringSecretUri})' }
+        { name: 'ConnectionStrings__KubaPCDatabase', value: databaseConnectionString }
+        { name: 'Database__UseEntraIdAuthentication', value: 'true' }
         { name: 'AppSettings__Secret', value: '@Microsoft.KeyVault(SecretUri=${jwtSecretUri})' }
         { name: 'AppSettings__Issuer', value: 'KubaPC' }
         { name: 'AppSettings__Audience', value: 'KubaPC.Clients' }
