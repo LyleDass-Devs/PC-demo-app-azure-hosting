@@ -40,7 +40,10 @@ fqdn=$(az postgres flexible-server show --resource-group "$resourceGroup" --name
 export PGUSER="sc-kubapc-$environmentName"
 PGPASSWORD=$(az account get-access-token --resource-type oss-rdbms --query accessToken --output tsv)
 export PGPASSWORD
-export PGSSLMODE=require
+# verify-full: psql checks the server certificate against the system root store and
+# that its name matches the host, so a token can never be handed to an impostor.
+export PGSSLMODE=verify-full
+export PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt
 
 echo "Loading data into $fqdn/$database as $PGUSER"
 psql --host "$fqdn" --port 5432 --dbname "$database" --set ON_ERROR_STOP=1 --quiet --single-transaction --file "$dumpFile"

@@ -171,3 +171,6 @@ The old `clone-local-data.sh` and the break-glass logic are removed, not kept as
 - One subscription, resource groups as the environment boundary.
 - One approver, who is also the author.
 - Key Vault purge protection off.
+- Each environment's pipeline identity holds Network Contributor and Private DNS Zone Contributor on the whole hub resource group, because a module scoped to another group needs to write a deployment there. A custom role limited to peerings, zone links and A records would be tighter.
+- The agent VM's managed identity has a standing application-level login on every environment's database, prod included, for operator tasks. A bank would use a separate operator identity with a time-boxed, approved elevation.
+- One agent VM serves pull-request builds and prod deployments alike. A bank gives prod its own pool, or uses agents that are discarded after each job, so an untrusted build can never share a machine with a deployment. Here the repository is private with one author.
