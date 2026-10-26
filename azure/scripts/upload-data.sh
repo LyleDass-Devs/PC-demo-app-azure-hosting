@@ -6,6 +6,10 @@
 # Local connection settings come from LOCAL_PG_HOST, LOCAL_PG_PORT,
 # LOCAL_PG_DATABASE, LOCAL_PG_USER and LOCAL_PG_PASSWORD.
 #
+# If PostgreSQL is installed on Windows, the script uses its own pg_dump.exe: WSL
+# cannot reach Windows on localhost, and Ubuntu's older pg_dump refuses to dump a
+# newer server. Set LOCAL_PG_DUMP to choose a different pg_dump.
+#
 # Your laptop cannot reach the database (it is only reachable from inside the
 # Azure network), so the dump travels through storage and the pipeline, which
 # runs on the agent VM, applies it. The upload uses your Entra ID login; the
@@ -33,11 +37,22 @@ trap 'rm -f "$dumpFile"' EXIT
 # Data only: the schema comes from the migration scripts, which the pipeline has
 # already applied. schema_migrations and error_logs belong to the target, not to
 # the laptop.
-echo "Dumping data from $localHost:$localPort/$localDatabase"
-PGPASSWORD="$LOCAL_PG_PASSWORD" pg_dump --host "$localHost" --port "$localPort" --username "$localUser" --dbname "$localDatabase" \
-  --data-only --no-owner --no-privileges --disable-triggers \
+# No --disable-triggers: on Azure that needs a superuser. load-data.sh switches off
+# the application's own triggers instead, which the table owner may do.
+windowsPgDump=$(ls /mnt/c/Program\ Files/PostgreSQL/*/bin/pg_dump.exe 2>/dev/null | sort -V | tail -1 || true)
+pgDump="${LOCAL_PG_DUMP:-${windowsPgDump:-pg_dump}}"
+# A Windows program only sees the WSL variables listed in WSLENV.
+export PGPASSWORD="$LOCAL_PG_PASSWORD"
+export WSLENV="PGPASSWORD/u${WSLENV:+:$WSLENV}"
+
+echo "Dumping data from $localHost:$localPort/$localDatabase with $pgDump"
+# Written to standard output rather than --file because a Windows pg_dump cannot
+# open a path inside WSL.
+"$pgDump" --host "$localHost" --port "$localPort" --username "$localUser" --dbname "$localDatabase" \
+  --data-only --no-owner --no-privileges \
   --exclude-table=schema_migrations --exclude-table=error_logs \
-  --file "$dumpFile"
+  > "$dumpFile"
+echo "Dump is $(wc -c < "$dumpFile") bytes."
 
 storageAccountName=$(az storage account list --resource-group "$sharedResourceGroup" --query "[?starts_with(name, 'stkubapc')].name | [0]" --output tsv)
 if [ -z "$storageAccountName" ]; then

@@ -45,6 +45,31 @@ export PGPASSWORD
 export PGSSLMODE=verify-full
 export PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt
 
+# The load replaces the environment's data with the laptop's copy. The migration
+# scripts seed reference rows that the dump also contains, so every application
+# table is emptied first. User triggers (auditing, append-only guards) are switched
+# off for the load and back on afterwards; foreign keys stay checked. All of it is
+# one transaction, so a failure leaves the old data untouched.
+psqlArgs=(--host "$fqdn" --port 5432 --dbname "$database" --set ON_ERROR_STOP=1 --quiet)
+applicationTables="FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('schema_migrations', 'error_logs')"
+tableList=$(psql "${psqlArgs[@]}" --tuples-only --no-align --command \
+  "SELECT string_agg(format('%I.%I', schemaname, tablename), ', ' ORDER BY tablename) $applicationTables")
+if [ -z "$tableList" ]; then
+  echo "No application tables found in $database. Run the kubapc pipeline first."
+  exit 1
+fi
+
+loadFile=$(mktemp /tmp/kubapc-load-XXXXXX)
+{
+  psql "${psqlArgs[@]}" --tuples-only --no-align --command \
+    "SELECT format('ALTER TABLE %I.%I DISABLE TRIGGER USER;', schemaname, tablename) $applicationTables"
+  echo "TRUNCATE $tableList RESTART IDENTITY CASCADE;"
+  cat "$dumpFile"
+  psql "${psqlArgs[@]}" --tuples-only --no-align --command \
+    "SELECT format('ALTER TABLE %I.%I ENABLE TRIGGER USER;', schemaname, tablename) $applicationTables"
+} > "$loadFile"
+
 echo "Loading data into $fqdn/$database as $PGUSER"
-psql --host "$fqdn" --port 5432 --dbname "$database" --set ON_ERROR_STOP=1 --quiet --single-transaction --file "$dumpFile"
+psql "${psqlArgs[@]}" --single-transaction --file "$loadFile"
+rm -f "$loadFile"
 echo "Data loaded into $environmentName."
