@@ -16,7 +16,7 @@ param agentSubnetPrefix string = '10.10.1.0/24'
 param agentVmName string = 'vm-kubapc-agent'
 
 @description('Size of the agent virtual machine.')
-param agentVmSize string = 'Standard_B2s'
+param agentVmSize string = 'Standard_B2s_v2'
 
 @description('Administrator user name on the agent virtual machine.')
 param agentAdminUsername string = 'kubapc'

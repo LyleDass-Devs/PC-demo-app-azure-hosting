@@ -10,7 +10,7 @@ param environmentName string
 param location string = resourceGroup().location
 
 @description('Region for Static Web Apps, which is not offered in South Africa.')
-param staticWebAppLocation string = 'westeurope'
+param staticWebAppLocation string = 'eastus2'
 
 @description('Address space of this environment\'s virtual network, for example 10.20.0.0/16.')
 param vnetAddressPrefix string

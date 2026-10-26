@@ -33,7 +33,7 @@ KubaPC runs on Azure in South Africa North, in three resource groups: one shared
             |
    +--------+-----------------------------+
    |                                      |
- Static Web Apps (Free, westeurope)   App Service B1 (Linux)
+ Static Web Apps (Free, eastus2)    App Service B1 (Linux)
  Blazor Admin client                  KubaPC.API, managed identity
    |  browser calls the API           HTTPS only, TLS 1.2, health check /health
    +------------------------------->      | VNet integration into snet-app

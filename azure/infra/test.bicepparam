@@ -2,7 +2,7 @@ using './main.bicep'
 
 param namePrefix = 'kubapc-test'
 param environmentName = 'test'
-param staticWebAppLocation = 'westeurope'
+param staticWebAppLocation = 'eastus2'
 param vnetAddressPrefix = '10.20.0.0/16'
 param appSubnetPrefix = '10.20.1.0/24'
 param privateEndpointSubnetPrefix = '10.20.2.0/24'
