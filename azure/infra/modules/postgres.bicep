@@ -91,7 +91,7 @@ resource allowedExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurat
   parent: server
   name: 'azure.extensions'
   properties: {
-    value: 'PGCRYPTO'
+    value: 'BTREE_GIST,PGCRYPTO'
     source: 'user-override'
   }
   dependsOn: [
