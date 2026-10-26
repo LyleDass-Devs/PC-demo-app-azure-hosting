@@ -20,9 +20,10 @@ blobName="$environmentName.sql"
 
 storageAccountName=$(az storage account list --resource-group "$sharedResourceGroup" --query "[?starts_with(name, 'stkubapc')].name | [0]" --output tsv)
 dumpFile=$(mktemp /tmp/kubapc-data-XXXXXX)
+loadFile=$(mktemp /tmp/kubapc-load-XXXXXX)
 
 cleanUp() {
-  rm -f "$dumpFile"
+  rm -f "$dumpFile" "$loadFile"
   echo "Deleting $containerName/$blobName from storage."
   az storage blob delete --auth-mode login --account-name "$storageAccountName" \
     --container-name "$containerName" --name "$blobName" --output none || echo "Blob was already gone."
@@ -59,7 +60,6 @@ if [ -z "$tableList" ]; then
   exit 1
 fi
 
-loadFile=$(mktemp /tmp/kubapc-load-XXXXXX)
 {
   psql "${psqlArgs[@]}" --tuples-only --no-align --command \
     "SELECT format('ALTER TABLE %I.%I DISABLE TRIGGER USER;', schemaname, tablename) $applicationTables"
@@ -71,5 +71,4 @@ loadFile=$(mktemp /tmp/kubapc-load-XXXXXX)
 
 echo "Loading data into $fqdn/$database as $PGUSER"
 psql "${psqlArgs[@]}" --single-transaction --file "$loadFile"
-rm -f "$loadFile"
 echo "Data loaded into $environmentName."
