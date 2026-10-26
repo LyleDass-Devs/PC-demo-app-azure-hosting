@@ -109,6 +109,14 @@ stages:
           name: $(agentPool)
         steps:
           - checkout: self
+          # Installs the exact SDK named in global.json, the same one developers build
+          # with. The agent's own SDK comes from Ubuntu's feed and lags behind; its
+          # older Razor compiler rejects syntax the newer one accepts.
+          - task: UseDotNet@2
+            displayName: Install the .NET SDK from global.json
+            inputs:
+              packageType: sdk
+              useGlobalJson: true
           - script: dotnet restore $(appSolution)
             displayName: Restore packages
           - script: dotnet build $(appSolution) --configuration Release --no-restore
