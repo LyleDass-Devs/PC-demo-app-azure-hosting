@@ -76,7 +76,7 @@ grantApplicationLogin() {
   roleCount=$(psql "${psqlArgs[@]}" --tuples-only --no-align --command "SELECT count(*) FROM pg_roles WHERE rolname = '$loginName'")
   if [ "$roleCount" = "0" ]; then
     echo "Creating Entra ID login: $loginName"
-    psql "${psqlArgs[@]}" --command "SELECT * FROM pgaadauth_create_principal_with_oid('$loginName', '$objectId', false, false)" > /dev/null
+    psql "${psqlArgs[@]}" --command "SELECT * FROM pgaadauth_create_principal_with_oid('$loginName', '$objectId', 'service', false, false)" > /dev/null
   else
     echo "Entra ID login exists: $loginName"
   fi
