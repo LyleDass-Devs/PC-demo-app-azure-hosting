@@ -15,6 +15,11 @@ cat > "$siteFolder/appsettings.json" <<EOF
 EOF
 rm -f "$siteFolder/appsettings.Development.json"
 
+# Publishing also writes .br and .gz copies of every file. The copies of the two
+# files changed here still hold the build-time values (empty ApiBaseUrl, localhost
+# in the content security policy), so remove them rather than risk one being served.
+rm -f "$siteFolder"/appsettings*.json.br "$siteFolder"/appsettings*.json.gz   "$siteFolder/index.html.br" "$siteFolder/index.html.gz"
+
 sed -i "s#connect-src 'self' http://localhost:5161 https://localhost:7122#connect-src 'self' $apiUrl#" "$siteFolder/index.html"
 grep -q "connect-src 'self' $apiUrl" "$siteFolder/index.html" || { echo "Content security policy was not updated."; exit 1; }
 
