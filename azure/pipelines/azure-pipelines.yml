@@ -137,7 +137,9 @@ stages:
             displayName: Publish the API
           - script: |
               set -euo pipefail
-              dotnet publish $(adminProject) --configuration Release --no-build --output $(Build.ArtifactStagingDirectory)/admin
+              # No --no-build here: publishing is what writes the fingerprinted Blazor file
+              # names into index.html, and skipping the build skips that step.
+              dotnet publish $(adminProject) --configuration Release --output $(Build.ArtifactStagingDirectory)/admin
               cp azure/web/staticwebapp.config.json $(Build.ArtifactStagingDirectory)/admin/wwwroot/
             displayName: Publish the Admin client
           - script: |
