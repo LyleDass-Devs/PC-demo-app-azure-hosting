@@ -40,18 +40,22 @@ trap 'rm -f "$dumpFile"' EXIT
 # No --disable-triggers: on Azure that needs a superuser. load-data.sh switches off
 # the application's own triggers instead, which the table owner may do.
 windowsPgDump=$(ls /mnt/c/Program\ Files/PostgreSQL/*/bin/pg_dump.exe 2>/dev/null | sort -V | tail -1 || true)
-pgDump="${LOCAL_PG_DUMP:-${windowsPgDump:-pg_dump}}"
-# A Windows program only sees the WSL variables listed in WSLENV.
-export PGPASSWORD="$LOCAL_PG_PASSWORD"
-export WSLENV="PGPASSWORD/u${WSLENV:+:$WSLENV}"
+pgDump="${LOCAL_PG_DUMP:-${windowsPgDump:-$(command -v pg_dump)}}"
+# WSL does not pass environment variables such as PGPASSWORD to Windows programs,
+# so the password travels in the connection address, percent-encoded. It is only
+# ever visible on this laptop.
+encodedPassword=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$LOCAL_PG_PASSWORD")
+connectionUri="postgresql://$localUser:$encodedPassword@$localHost:$localPort/$localDatabase"
 
 echo "Dumping data from $localHost:$localPort/$localDatabase with $pgDump"
-# Written to standard output rather than --file because a Windows pg_dump cannot
-# open a path inside WSL.
-"$pgDump" --host "$localHost" --port "$localPort" --username "$localUser" --dbname "$localDatabase" \
+# Run from its own folder: a Windows pg_dump started by its WSL path cannot find
+# itself ("could not find a pg_dump.exe to execute"). Output goes to standard
+# output because a Windows program cannot open a path inside WSL, and the Windows
+# line endings it writes are turned back into Unix ones (COPY data escapes any
+# real carriage return, so only line endings are affected).
+(cd "$(dirname "$pgDump")" && "./$(basename "$pgDump")" --no-password --dbname "$connectionUri" \
   --data-only --no-owner --no-privileges \
-  --exclude-table=schema_migrations --exclude-table=error_logs \
-  > "$dumpFile"
+  --exclude-table=schema_migrations --exclude-table=error_logs < /dev/null) | sed 's/\r$//' > "$dumpFile"
 echo "Dump is $(wc -c < "$dumpFile") bytes."
 
 storageAccountName=$(az storage account list --resource-group "$sharedResourceGroup" --query "[?starts_with(name, 'stkubapc')].name | [0]" --output tsv)
