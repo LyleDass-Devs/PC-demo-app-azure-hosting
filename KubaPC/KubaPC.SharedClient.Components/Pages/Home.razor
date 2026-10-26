@@ -22,9 +22,11 @@
 
     private static string Greeting => DateTime.Now.Hour switch
     {
-        < 12 => "Good morning",
-        < 17 => "Good afternoon",
-        _ => "Good evening"
+        // Patterns start with >= because the Razor compiler in the .NET 10.0.1xx SDK
+        // reads a line starting with < inside @code as an HTML tag.
+        >= 17 => "Good evening",
+        >= 12 => "Good afternoon",
+        _ => "Good morning"
     };
 
     protected override async Task OnInitializedAsync()
