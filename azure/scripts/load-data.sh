@@ -21,9 +21,12 @@ blobName="$environmentName.sql"
 storageAccountName=$(az storage account list --resource-group "$sharedResourceGroup" --query "[?starts_with(name, 'stkubapc')].name | [0]" --output tsv)
 dumpFile=$(mktemp /tmp/kubapc-data-XXXXXX)
 loadFile=$(mktemp /tmp/kubapc-load-XXXXXX)
+alignedFile=$(mktemp /tmp/kubapc-aligned-XXXXXX)
+targetColumnsFile=$(mktemp /tmp/kubapc-columns-XXXXXX)
+targetSequencesFile=$(mktemp /tmp/kubapc-sequences-XXXXXX)
 
 cleanUp() {
-  rm -f "$dumpFile" "$loadFile"
+  rm -f "$dumpFile" "$loadFile" "$alignedFile" "$targetColumnsFile" "$targetSequencesFile"
   echo "Deleting $containerName/$blobName from storage."
   az storage blob delete --auth-mode login --account-name "$storageAccountName" \
     --container-name "$containerName" --name "$blobName" --output none || echo "Blob was already gone."
@@ -60,11 +63,20 @@ if [ -z "$tableList" ]; then
   exit 1
 fi
 
+# The laptop's schema can have drifted from the migration scripts (extra tables or
+# columns added by hand). Fit the dump to what this database actually has and
+# report anything left out.
+psql "${psqlArgs[@]}" --tuples-only --no-align --field-separator '|' --command \
+  "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod) FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = '' ORDER BY c.relname, a.attnum" > "$targetColumnsFile"
+psql "${psqlArgs[@]}" --tuples-only --no-align --command \
+  "SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'" > "$targetSequencesFile"
+python3 "$(dirname "$0")/align-dump.py" "$dumpFile" "$targetColumnsFile" "$targetSequencesFile" "$alignedFile"
+
 {
   psql "${psqlArgs[@]}" --tuples-only --no-align --command \
     "SELECT format('ALTER TABLE %I.%I DISABLE TRIGGER USER;', schemaname, tablename) $applicationTables"
   echo "TRUNCATE $tableList RESTART IDENTITY CASCADE;"
-  cat "$dumpFile"
+  cat "$alignedFile"
   psql "${psqlArgs[@]}" --tuples-only --no-align --command \
     "SELECT format('ALTER TABLE %I.%I ENABLE TRIGGER USER;', schemaname, tablename) $applicationTables"
 } > "$loadFile"
