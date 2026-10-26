@@ -134,6 +134,11 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
       }
     ]
   }
+  // Last link of the chain above: the server rejects a private endpoint while it is
+  // still applying configuration ("ServerIsBusy").
+  dependsOn: [
+    pipelineAdministrator
+  ]
 }
 
 resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
@@ -154,6 +159,9 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
 resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: 'send-to-log-analytics'
   scope: server
+  dependsOn: [
+    privateDnsZoneGroup
+  ]
   properties: {
     workspaceId: logAnalyticsId
     logs: [

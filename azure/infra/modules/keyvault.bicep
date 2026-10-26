@@ -39,7 +39,9 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    enablePurgeProtection: false
+    // Purge protection is left unset (off). Azure rejects an explicit false, and
+    // turning it on cannot be undone, which would block teardown and redeploy for
+    // the retention period. A bank would turn it on; see the hardening table.
     publicNetworkAccess: 'Disabled'
     networkAcls: {
       defaultAction: 'Deny'
