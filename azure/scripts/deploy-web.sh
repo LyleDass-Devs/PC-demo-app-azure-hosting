@@ -22,6 +22,7 @@ rm -f "$siteFolder"/appsettings*.json.br "$siteFolder"/appsettings*.json.gz   "$
 
 sed -i "s#connect-src 'self' http://localhost:5161 https://localhost:7122#connect-src 'self' $apiUrl#" "$siteFolder/index.html"
 grep -q "connect-src 'self' $apiUrl" "$siteFolder/index.html" || { echo "Content security policy was not updated."; exit 1; }
+python3 "$(dirname "$0")/allow-import-map.py" "$siteFolder/index.html"
 
 token=$(az staticwebapp secrets list --name "$siteName" --resource-group "$resourceGroup" --query properties.apiKey --output tsv)
 npx --yes @azure/static-web-apps-cli@2 deploy "$siteFolder" --deployment-token "$token" --env production
