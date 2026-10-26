@@ -12,7 +12,7 @@ param databaseName = 'kubapc'
 
 // Paste the object id of the sc-kubapc-test service principal here. The last line
 // printed by azure/scripts/grant-pipeline-roles.sh test <client id> gives it to you.
-param pipelinePrincipalObjectId = '7246078b-38e6-4685-aded-c16fbc71ac8c'
+param pipelinePrincipalObjectId = 'c9f20ce8-3e73-4795-9a80-4c77979d6d6b'
 param pipelinePrincipalLoginName = 'sc-kubapc-test'
 
 param jwtSecret = readEnvironmentVariable('JWT_SECRET')
