@@ -37,6 +37,9 @@ export PGPASSWORD
 export PGSSLMODE=verify-full
 export PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt
 psqlArgs=(--host "$fqdn" --port 5432 --dbname "$database" --set ON_ERROR_STOP=1 --quiet)
+# Azure installs the pgaadauth functions only in the built-in postgres database.
+# Roles belong to the whole server, so a login created there works in every database.
+postgresDatabaseArgs=(--host "$fqdn" --port 5432 --dbname postgres --set ON_ERROR_STOP=1 --quiet)
 
 # Right after a deployment the server can still be finishing a configuration
 # change, or the private DNS record can be seconds old. Give it a little time.
@@ -76,7 +79,7 @@ grantApplicationLogin() {
   roleCount=$(psql "${psqlArgs[@]}" --tuples-only --no-align --command "SELECT count(*) FROM pg_roles WHERE rolname = '$loginName'")
   if [ "$roleCount" = "0" ]; then
     echo "Creating Entra ID login: $loginName"
-    psql "${psqlArgs[@]}" --command "SELECT * FROM pgaadauth_create_principal_with_oid('$loginName', '$objectId', 'service', false, false)" > /dev/null
+    psql "${postgresDatabaseArgs[@]}" --command "SELECT * FROM pgaadauth_create_principal_with_oid('$loginName', '$objectId', 'service', false, false)" > /dev/null
   else
     echo "Entra ID login exists: $loginName"
   fi
